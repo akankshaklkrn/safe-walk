@@ -29,7 +29,27 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-router"
-    ]
+      "expo-router",
+      [
+        "@livekit/react-native-expo-plugin",
+        {
+          "android": {
+            "audioType": "communication"
+          }
+        }
+      ],
+      "@config-plugins/react-native-webrtc",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "SafeWalk uses your microphone for live voice conversations during a trip."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "development-build-required"
+      }
+    }
   }
 }

@@ -28,7 +28,13 @@ export default function AICompanionPanel({ messages }: AICompanionPanelProps) {
         showsVerticalScrollIndicator={false}
       >
         {messages.map((message) => (
-          <View key={message.id} style={styles.messageBubble}>
+          <View
+            key={message.id}
+            style={[
+              styles.messageBubble,
+              message.sender === 'user' && styles.userMessageBubble,
+            ]}
+          >
             <Text style={styles.messageText}>{message.text}</Text>
             <Text style={styles.messageTime}>{formatTime(message.timestamp)}</Text>
           </View>
@@ -80,6 +86,10 @@ const styles = StyleSheet.create({
     padding: 12,
     borderLeftWidth: 3,
     borderLeftColor: colors.primary,
+  },
+  userMessageBubble: {
+    backgroundColor: '#F3F4F6',
+    borderLeftColor: colors.textLight,
   },
   messageText: {
     fontSize: 15,

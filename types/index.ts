@@ -1,11 +1,21 @@
 export type CommuteMode = 'walking' | 'car';
 
+export interface RouteMetrics {
+  directness: 'high' | 'medium' | 'low';
+  turnCount: number;
+  intersectionCount: number;
+  activityLevel: 'high' | 'medium' | 'low';
+  mainRoadExposure: 'high' | 'medium' | 'low';
+  nearbyStops: number;
+}
+
 export interface Route {
   id: string;
   name: string;
   eta: string;
   distance: string;
   observation: string;
+  metrics?: RouteMetrics;
 }
 
 export interface Trip {
@@ -19,26 +29,34 @@ export interface Trip {
 
 export type SafetyStatus = 'safe' | 'uncertain' | 'risk';
 
-export interface EmergencyContact {
-  id: string;
-  name: string;
-  phoneNumber: string;
-  relationship?: string;
-  isPrimary: boolean;
-}
-
-export interface Location {
-  latitude: number;
-  longitude: number;
-  address?: string;
-}
-
-export type LocationPermissionStatus = 'granted' | 'denied' | 'undetermined';
-
-export interface TripSetupData {
+export interface RouteSummaryInput {
   destination: string;
   mode: CommuteMode;
-  currentLocation: Location | null;
-  locationPermissionStatus: LocationPermissionStatus;
-  emergencyContacts: EmergencyContact[];
+  routes: Route[];
+}
+
+export interface RouteObservation {
+  routeId: string;
+  observation: string;
+}
+
+export interface RouteSummaryResponse {
+  provider: 'mock' | 'perplexity-ready';
+  observations: RouteObservation[];
+  overallComparison: string;
+  fallbackUsed: boolean;
+}
+
+export interface VoicePromptInput {
+  destination: string;
+  routeName: string;
+  eta: string;
+  safetyStatus: SafetyStatus;
+}
+
+export interface VoicePromptResponse {
+  provider: 'mock' | 'elevenlabs-ready';
+  script: string;
+  audioUrl: string | null;
+  fallbackUsed: boolean;
 }
