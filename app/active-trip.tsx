@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   View,
-  Text, TouchableOpacity,
+  Text,
+  TouchableOpacity,
   StyleSheet,
-
   Alert,
   TextInput,
 } from 'react-native';
@@ -31,83 +31,162 @@ export default function ActiveTripScreen() {
   const [safetyStatus, setSafetyStatus] = useState<SafetyStatus>('safe');
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [showEscalation, setShowEscalation] = useState(false);
-  const [aiMessages, setAiMessages] = useState<AIMessage[]>(getMockAIMessages());
+  const [draftMessage, setDraftMessage] = useState('');
+  const [voiceStatus, setVoiceStatus] = useState('Connecting trip companion');
+  const [isMicMuted, setIsMicMuted] = useState(false);
+  const [aiMessages, setAiMessages] = useState<AIMessage[]>(() =>
+    getMockAIMessages(
+      (destination as string) || 'your destination',
+      (routeName as string) || 'your selected route',
+      'safe'
+    )
+  );
+  const hasStartedSessionRef = useRef(false);
+
+  const configuredSafeWord = typeof safeWord === 'string' ? safeWord : '';
+  const destinationName = (destination as string) || 'your destination';
+  const selectedRouteName = (routeName as string) || 'your selected route';
+  const agentId = process.env.EXPO_PUBLIC_ELEVENLABS_AGENT_ID;
+  const useServerToken = process.env.EXPO_PUBLIC_ELEVENLABS_USE_SERVER_TOKEN === 'true';
+  const apiBaseUrl = Constants.expoConfig?.hostUri
+    ? `http://${Constants.expoConfig.hostUri}`
+    : '';
+  const tokenFetchUrl =
+    useServerToken && apiBaseUrl ? `${apiBaseUrl}/api/elevenlabs-token` : undefined;
+
+  const appendMessage = (message: AIMessage) => {
+    setAiMessages((currentMessages) => [...currentMessages, message]);
+  };
+
+  const conversation = useConversation({
+    tokenFetchUrl,
+    onConnect: ({ conversationId }) => {
+      setVoiceStatus(`Companion connected: ${conversationId}`);
+    },
+    onDisconnect: () => {
+      setVoiceStatus('Companion disconnected');
+    },
+    onError: (error) => {
+      const message = typeof error === 'string' ? error : 'Conversation failed';
+      setVoiceStatus(message);
+    },
+    onModeChange: ({ mode }) => {
+      setVoiceStatus(mode === 'speaking' ? 'AI companion speaking' : 'Listening');
+    },
+    onMessage: ({ message, source }) => {
+      appendMessage({
+        id: `${Date.now()}-${source}`,
+        text: message,
+        timestamp: new Date(),
+        sender: source === 'user' ? 'user' : 'ai',
+      });
+
+      if (source === 'user' && configuredSafeWord && containsSafeWord(message, configuredSafeWord)) {
+        void handleEscalation('Safe word detected in live conversation');
+      }
+    },
+  });
 
   useEffect(() => {
+    if (safetyStatus !== 'safe') {
+      return;
+    }
+
     const checkInTimer = setTimeout(() => {
       setShowCheckIn(true);
     }, 15000);
 
     return () => clearTimeout(checkInTimer);
-  }, []);
-
-  useEffect(() => {
-    if (safetyStatus === 'uncertain' || safetyStatus === 'risk') {
-      const escalationTimer = setTimeout(() => {
-        setShowEscalation(true);
-      }, 10000);
-
-      return () => clearTimeout(escalationTimer);
-    }
   }, [safetyStatus]);
 
-  const handleCheckInResponse = (isOkay: boolean) => {
-    setShowCheckIn(false);
-
-    if (isOkay) {
-      setSafetyStatus('safe');
-      const newMessage: AIMessage = {
-        id: Date.now().toString(),
-        text: "Great! Glad you're doing well. Keep going!",
-        timestamp: new Date(),
-      };
-      setAiMessages([...aiMessages, newMessage]);
-    } else {
-      setSafetyStatus('uncertain');
-      const newMessage: AIMessage = {
-        id: Date.now().toString(),
-        text: "I'm here to help. Let me know if you need anything or use the SOS button if it's urgent.",
-        timestamp: new Date(),
-      };
-      setAiMessages([...aiMessages, newMessage]);
+  useEffect(() => {
+    if (safetyStatus !== 'uncertain' && safetyStatus !== 'risk') {
+      return;
     }
-  };
 
-  const handleConfirmSafe = () => {
-    setShowEscalation(false);
-    setSafetyStatus('safe');
-    const newMessage: AIMessage = {
-      id: Date.now().toString(),
-      text: "Glad to hear you're safe! Continuing to monitor your trip.",
-      timestamp: new Date(),
+    const escalationTimer = setTimeout(() => {
+      setShowEscalation(true);
+    }, 10000);
+
+    return () => clearTimeout(escalationTimer);
+  }, [safetyStatus]);
+
+  useEffect(() => {
+    if (hasStartedSessionRef.current || safetyStatus === 'risk') {
+      return;
+    }
+
+    if (!agentId) {
+      setVoiceStatus('Missing EXPO_PUBLIC_ELEVENLABS_AGENT_ID');
+      return;
+    }
+
+    hasStartedSessionRef.current = true;
+
+    conversation
+      .startSession({
+        agentId,
+        tokenFetchUrl,
+        userId: `trip-${Date.now()}`,
+        dynamicVariables: {
+          destination: destinationName,
+          route_name: selectedRouteName,
+          safe_word_enabled: Boolean(configuredSafeWord),
+        },
+      })
+      .then(() => {
+        conversation.sendContextualUpdate(
+          `SafeWalk trip started. Destination: ${destinationName}. Route: ${selectedRouteName}. Keep the user company for the full trip.`
+        );
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : 'Could not start conversation';
+        setVoiceStatus(message);
+      });
+  }, [
+    agentId,
+    configuredSafeWord,
+    conversation,
+    destinationName,
+    safetyStatus,
+    selectedRouteName,
+    tokenFetchUrl,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (conversation.status !== 'disconnected') {
+        conversation.endSession().catch(() => undefined);
+      }
     };
-    setAiMessages([...aiMessages, newMessage]);
-  };
+  }, [conversation]);
 
-  const handleEmergencyContact = () => {
+  useEffect(() => {
+    if (conversation.status === 'connected') {
+      setVoiceStatus(isMicMuted ? 'Mic muted' : conversation.isSpeaking ? 'AI companion speaking' : 'Listening');
+    } else if (conversation.status === 'connecting') {
+      setVoiceStatus('Connecting trip companion');
+    } else if (conversation.status === 'disconnected' && safetyStatus !== 'risk') {
+      setVoiceStatus('Trip companion offline');
+    }
+  }, [conversation.isSpeaking, conversation.status, isMicMuted, safetyStatus]);
+
+  const handleEscalation = async (reason: string) => {
+    setShowCheckIn(false);
     setShowEscalation(false);
     setSafetyStatus('risk');
-    const newMessage: AIMessage = {
-      id: Date.now().toString(),
-      text: "Emergency protocol activated. Your emergency contact has been notified with your live location and trip details.",
-      timestamp: new Date(),
-    };
-    setAiMessages([...aiMessages, newMessage]);
-    Alert.alert(
-      'Emergency Contact Notified',
-      'Your emergency contact has been sent your live location and a notification that you need help.',
-      [{ text: 'OK' }]
-    );
-  };
 
-  const handleSOS = () => {
-    setSafetyStatus('risk');
-    const newMessage: AIMessage = {
-      id: Date.now().toString(),
-      text: "Emergency alert sent! Your trusted contact has been notified with your live location.",
+    if (conversation.status !== 'disconnected') {
+      await conversation.endSession();
+    }
+
+    appendMessage({
+      id: `${Date.now()}-escalation`,
+      text: `Emergency protocol activated. Reason: ${reason}. Your trusted contact has been notified with your live location and trip details.`,
       timestamp: new Date(),
-    };
-    setAiMessages([...aiMessages, newMessage]);
+      sender: 'ai',
+    });
+
     Alert.alert(
       'Escalation Triggered',
       `Emergency alert sent to your trusted contact with your live location. Reason: ${reason}.`,
@@ -115,7 +194,53 @@ export default function ActiveTripScreen() {
     );
   };
 
-  const handleEndTrip = () => {
+  const handleCheckInResponse = (isOkay: boolean) => {
+    setShowCheckIn(false);
+
+    if (isOkay) {
+      setSafetyStatus('safe');
+      appendMessage({
+        id: `${Date.now()}-checkin-safe`,
+        text: "Great! Glad you're doing well. I'll stay with you for the rest of the trip.",
+        timestamp: new Date(),
+        sender: 'ai',
+      });
+      return;
+    }
+
+    setSafetyStatus('uncertain');
+    appendMessage({
+      id: `${Date.now()}-checkin-help`,
+      text: "I'm here to help. Stay with me, and use SOS if you need immediate support.",
+      timestamp: new Date(),
+      sender: 'ai',
+    });
+  };
+
+  const handleConfirmSafe = () => {
+    setShowEscalation(false);
+    setSafetyStatus('safe');
+    appendMessage({
+      id: `${Date.now()}-confirm-safe`,
+      text: "Glad to hear you're safe. I'll continue monitoring the trip.",
+      timestamp: new Date(),
+      sender: 'ai',
+    });
+  };
+
+  const handleEmergencyContact = () => {
+    void handleEscalation('Emergency contact requested from safety alert');
+  };
+
+  const handleSOS = () => {
+    void handleEscalation('Manual SOS');
+  };
+
+  const handleEndTrip = async () => {
+    if (conversation.status !== 'disconnected') {
+      await conversation.endSession();
+    }
+
     router.push({
       pathname: '/trip-complete',
       params: {
@@ -126,6 +251,40 @@ export default function ActiveTripScreen() {
       },
     });
   };
+
+  const handleMicToggle = () => {
+    if (conversation.status !== 'connected') {
+      Alert.alert('Voice Offline', 'The trip companion is not connected yet.');
+      return;
+    }
+
+    const nextMuted = !isMicMuted;
+    conversation.setMicMuted(nextMuted);
+    setIsMicMuted(nextMuted);
+  };
+
+  const handleSendMessage = () => {
+    if (!draftMessage.trim()) {
+      return;
+    }
+
+    if (configuredSafeWord && containsSafeWord(draftMessage, configuredSafeWord)) {
+      setDraftMessage('');
+      void handleEscalation('Safe word detected in manual message');
+      return;
+    }
+
+    if (conversation.status === 'connected') {
+      conversation.sendUserMessage(draftMessage.trim());
+      setDraftMessage('');
+      return;
+    }
+
+    Alert.alert('Voice Offline', 'The live companion is not connected yet.');
+  };
+
+  const isConnected = conversation.status === 'connected';
+  const isConnecting = conversation.status === 'connecting';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -160,15 +319,16 @@ export default function ActiveTripScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[
-              styles.endTripButton,
+              styles.voiceActionButton,
               isConnecting && styles.voiceControlButtonDisabled,
             ]}
             onPress={() => void handleEndTrip()}
             disabled={isConnecting}
           >
-            <Text style={styles.endTripButtonText}>End Trip</Text>
+            <Text style={styles.voiceActionButtonText}>End Trip</Text>
           </TouchableOpacity>
         </View>
+
         <TextInput
           style={styles.messageInput}
           placeholder="Optional manual message to the companion"
@@ -178,17 +338,20 @@ export default function ActiveTripScreen() {
           autoCapitalize="sentences"
           autoCorrect={false}
         />
+
         <View style={styles.monitorRow}>
           <Text style={styles.monitorText}>
-            {configuredSafeWord ? 'Safe word armed during the full live conversation.' : 'No safe word configured.'}
+            {configuredSafeWord
+              ? 'Safe word armed during the full live conversation.'
+              : 'No safe word configured.'}
           </Text>
           <TouchableOpacity
             style={[
               styles.sendButton,
-              conversation.status !== 'connected' && styles.voiceControlButtonDisabled,
+              !isConnected && styles.voiceControlButtonDisabled,
             ]}
             onPress={handleSendMessage}
-            disabled={conversation.status !== 'connected'}
+            disabled={!isConnected}
           >
             <Text style={styles.sendButtonText}>Send</Text>
           </TouchableOpacity>
@@ -200,19 +363,10 @@ export default function ActiveTripScreen() {
       </View>
 
       <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={styles.endTripButton}
-          onPress={handleEndTrip}
-        >
-          <Text style={styles.endTripButtonText}>End Trip</Text>
-        </TouchableOpacity>
         <SOSButton onPress={handleSOS} />
       </View>
 
-      <CheckInModal
-        visible={showCheckIn}
-        onRespond={handleCheckInResponse}
-      />
+      <CheckInModal visible={showCheckIn} onRespond={handleCheckInResponse} />
 
       <EscalationAlert
         visible={showEscalation}
@@ -266,6 +420,12 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 10,
   },
+  voiceStatus: {
+    fontSize: 13,
+    color: colors.textLight,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
   voiceButtonRow: {
     flexDirection: 'row',
     gap: 12,
@@ -273,6 +433,13 @@ const styles = StyleSheet.create({
   },
   voiceControlButton: {
     backgroundColor: colors.primary,
+    borderRadius: 12,
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  voiceActionButton: {
+    backgroundColor: colors.gray[700],
     borderRadius: 12,
     flex: 1,
     paddingVertical: 14,
@@ -286,23 +453,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
-  endTripButton: {
-    backgroundColor: colors.gray[700],
-    borderRadius: 12,
-    flex: 1,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  endTripButtonText: {
+  voiceActionButtonText: {
     color: colors.white,
     fontSize: 15,
     fontWeight: '700',
-  },
-  voiceStatus: {
-    fontSize: 13,
-    color: colors.textLight,
-    lineHeight: 18,
-    marginBottom: 12,
   },
   messageInput: {
     borderWidth: 1,
@@ -344,24 +498,7 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     paddingHorizontal: 24,
-    gap: 12,
     alignItems: 'center',
     paddingBottom: 32,
-  },
-  endTripButton: {
-    backgroundColor: colors.secondary,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  endTripButtonText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
