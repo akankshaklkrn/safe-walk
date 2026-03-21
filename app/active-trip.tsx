@@ -1,7 +1,16 @@
-import { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  View,
+  Text, TouchableOpacity,
+  StyleSheet,
+
+  Alert,
+  TextInput,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import Constants from 'expo-constants';
+import { useConversation } from '@elevenlabs/react-native';
 import { colors } from '../constants/colors';
 import { SafetyStatus, CommuteMode } from '../types';
 import MapView from '../components/MapView';
@@ -13,10 +22,11 @@ import CheckInModal from '../components/CheckInModal';
 import EscalationAlert from '../components/EscalationAlert';
 import { getMockAIMessages, AIMessage } from '../data/mockMessages';
 import { useTripContext } from '../context/TripContext';
+import { containsSafeWord } from '../services/p3';
 
 export default function ActiveTripScreen() {
   const router = useRouter();
-  const { destination, routeName, mode } = useLocalSearchParams();
+  const { destination, routeName, mode, safeWord } = useLocalSearchParams();
   const { tripSetupData } = useTripContext();
   const [safetyStatus, setSafetyStatus] = useState<SafetyStatus>('safe');
   const [showCheckIn, setShowCheckIn] = useState(false);
@@ -99,8 +109,8 @@ export default function ActiveTripScreen() {
     };
     setAiMessages([...aiMessages, newMessage]);
     Alert.alert(
-      'SOS Activated',
-      'Emergency alert sent to your trusted contact with your live location.',
+      'Escalation Triggered',
+      `Emergency alert sent to your trusted contact with your live location. Reason: ${reason}.`,
       [{ text: 'OK' }]
     );
   };
@@ -134,12 +144,63 @@ export default function ActiveTripScreen() {
         <AICompanionPanel messages={aiMessages} />
       </View>
 
+      <View style={styles.voiceContainer}>
+        <Text style={styles.inputLabel}>Trip Companion</Text>
+        <Text style={styles.voiceStatus}>{voiceStatus}</Text>
+        <View style={styles.voiceButtonRow}>
+          <TouchableOpacity
+            style={[
+              styles.voiceControlButton,
+              !isConnected && styles.voiceControlButtonDisabled,
+            ]}
+            onPress={handleMicToggle}
+            disabled={!isConnected}
+          >
+            <Text style={styles.voiceControlText}>Mute / Unmute Mic</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.endTripButton,
+              isConnecting && styles.voiceControlButtonDisabled,
+            ]}
+            onPress={() => void handleEndTrip()}
+            disabled={isConnecting}
+          >
+            <Text style={styles.endTripButtonText}>End Trip</Text>
+          </TouchableOpacity>
+        </View>
+        <TextInput
+          style={styles.messageInput}
+          placeholder="Optional manual message to the companion"
+          placeholderTextColor={colors.textLight}
+          value={draftMessage}
+          onChangeText={setDraftMessage}
+          autoCapitalize="sentences"
+          autoCorrect={false}
+        />
+        <View style={styles.monitorRow}>
+          <Text style={styles.monitorText}>
+            {configuredSafeWord ? 'Safe word armed during the full live conversation.' : 'No safe word configured.'}
+          </Text>
+          <TouchableOpacity
+            style={[
+              styles.sendButton,
+              conversation.status !== 'connected' && styles.voiceControlButtonDisabled,
+            ]}
+            onPress={handleSendMessage}
+            disabled={conversation.status !== 'connected'}
+          >
+            <Text style={styles.sendButtonText}>Send</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <View style={styles.infoContainer}>
         <TripInfoBar eta="12 min" distance="0.8 mi" />
       </View>
 
       <View style={styles.buttonContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.endTripButton}
           onPress={handleEndTrip}
         >
@@ -185,7 +246,97 @@ const styles = StyleSheet.create({
   },
   companionContainer: {
     marginHorizontal: 24,
+    marginBottom: 12,
+  },
+  voiceContainer: {
+    marginHorizontal: 24,
     marginBottom: 16,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 10,
+  },
+  voiceButtonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  voiceControlButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  voiceControlButtonDisabled: {
+    opacity: 0.7,
+  },
+  voiceControlText: {
+    color: colors.white,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  endTripButton: {
+    backgroundColor: colors.gray[700],
+    borderRadius: 12,
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  endTripButtonText: {
+    color: colors.white,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  voiceStatus: {
+    fontSize: 13,
+    color: colors.textLight,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  messageInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: colors.text,
+    backgroundColor: colors.gray[50],
+  },
+  monitorRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  monitorText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.textLight,
+    lineHeight: 18,
+  },
+  sendButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  sendButtonText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '700',
   },
   infoContainer: {
     paddingHorizontal: 24,

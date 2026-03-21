@@ -10,13 +10,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { colors } from '../constants/colors';
 import { getMockRoutes } from '../data/mockRoutes';
+import { generateRouteSummary } from '../services/p3';
 import RouteCard from '../components/RouteCard';
 import { Route, CommuteMode } from '../types';
 
 export default function RouteSelectionScreen() {
-  const { destination, mode } = useLocalSearchParams();
+  const { destination, mode, safeWord } = useLocalSearchParams();
   const router = useRouter();
   const routes = getMockRoutes(destination as string, mode as CommuteMode);
+  const routeSummary = generateRouteSummary({
+    destination: (destination as string) || 'your destination',
+    mode: mode as CommuteMode,
+    routes,
+  });
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
 
   const handleStartTrip = () => {
@@ -26,6 +32,7 @@ export default function RouteSelectionScreen() {
         params: {
           destination,
           mode,
+          safeWord,
           routeId: selectedRoute.id,
           routeName: selectedRoute.name,
         },
@@ -45,6 +52,7 @@ export default function RouteSelectionScreen() {
           <Text style={styles.modeIndicator}>
             {mode === 'walking' ? '🚶 Walking' : '🚗 Driving'}
           </Text>
+          <Text style={styles.comparisonText}>{routeSummary.overallComparison}</Text>
         </View>
       </View>
 
@@ -113,6 +121,12 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: '600',
     marginTop: 4,
+  },
+  comparisonText: {
+    fontSize: 14,
+    color: colors.textLight,
+    lineHeight: 20,
+    marginTop: 8,
   },
   scrollView: {
     flex: 1,
