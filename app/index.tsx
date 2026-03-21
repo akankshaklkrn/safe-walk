@@ -20,7 +20,7 @@ export default function HomeScreen() {
   const handleFindRoutes = () => {
     if (destination.trim()) {
       router.push({
-        pathname: '/route-selection',
+        pathname: '/safety-setup',
         params: { destination, mode },
       });
     }
