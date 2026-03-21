@@ -2,12 +2,15 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors } from '../constants/colors';
+import { useTripContext } from '../context/TripContext';
 
 export default function TripCompleteScreen() {
   const router = useRouter();
   const { destination, mode, duration = '12', distance = '0.8' } = useLocalSearchParams();
+  const { resetTripSetup } = useTripContext();
 
   const handleStartNewTrip = () => {
+    resetTripSetup();
     router.replace('/');
   };
 

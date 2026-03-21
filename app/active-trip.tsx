@@ -12,10 +12,12 @@ import AICompanionPanel from '../components/AICompanionPanel';
 import CheckInModal from '../components/CheckInModal';
 import EscalationAlert from '../components/EscalationAlert';
 import { getMockAIMessages, AIMessage } from '../data/mockMessages';
+import { useTripContext } from '../context/TripContext';
 
 export default function ActiveTripScreen() {
   const router = useRouter();
   const { destination, routeName, mode } = useLocalSearchParams();
+  const { tripSetupData } = useTripContext();
   const [safetyStatus, setSafetyStatus] = useState<SafetyStatus>('safe');
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [showEscalation, setShowEscalation] = useState(false);
