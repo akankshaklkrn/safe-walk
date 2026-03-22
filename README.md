@@ -4,6 +4,55 @@ SafeWalk is an AI-powered walking companion that stays with a user throughout th
 
 The product is built around one idea: safety should not begin only after the user realizes they are in danger. SafeWalk combines companionship, route awareness, live trip monitoring, safe-word detection, SOS, and trusted-contact escalation into a single mobile experience.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="Screenshots/IMG_9847.PNG" alt="Sign Up Screen" width="220" />
+      <br />
+      <strong>Sign Up</strong>
+    </td>
+    <td align="center">
+      <img src="Screenshots/IMG_9842.PNG" alt="Login Screen" width="220" />
+      <br />
+      <strong>Login</strong>
+    </td>
+    <td align="center">
+      <img src="Screenshots/IMG_9840.PNG" alt="Home" width="220" />
+      <br />
+      <strong>Home</strong>
+    </td>
+    <td align="center">
+      <img src="Screenshots/IMG_9838.PNG" alt="Feedback Screen" width="220" />
+      <br />
+      <strong>Feedback Screen</strong>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="Screenshots/IMG_9843.PNG" alt="Route Selection Screen" width="220" />
+      <br />
+      <strong>Escalation Sequence</strong>
+    </td>
+    <td align="center">
+      <img src="Screenshots/IMG_9844.PNG" alt="Active Trip Screen" width="220" />
+      <br />
+      <strong>Choose Route</strong>
+    </td>
+    <td align="center">
+      <img src="Screenshots/IMG_5874.PNG" alt="Escalation Modal" width="220" />
+      <br />
+      <strong>Safety Setup</strong>
+    </td>
+    <td align="center">
+      <img src="Screenshots/IMG_9839.PNG" alt="Feedback Screen" width="220" />
+      <br />
+      <strong>Feedback Screen</strong>
+    </td>
+  </tr>
+</table>
+
 ## What SafeWalk Does
 
 - Starts with destination input and route planning
@@ -165,55 +214,6 @@ This keeps the route summary believable, deterministic, and demo-safe.
 - Active Trip
 - Emergency Escalation Modal
 - Trip Complete / Feedback
-
-## Screenshots
-
-<table>
-  <tr>
-    <td align="center">
-      <img src="Screenshots/IMG_5880.PNG" alt="Sign Up Screen" width="220" />
-      <br />
-      <strong>Sign Up</strong>
-    </td>
-    <td align="center">
-      <img src="Screenshots/IMG_5870.PNG" alt="Login Screen" width="220" />
-      <br />
-      <strong>Login</strong>
-    </td>
-    <td align="center">
-      <img src="Screenshots/IMG_5873.PNG" alt="Home" width="220" />
-      <br />
-      <strong>Home</strong>
-    </td>
-    <td align="center">
-      <img src="Screenshots/IMG_5879.PNG" alt="Feedback Screen" width="220" />
-      <br />
-      <strong>Feedback Screen</strong>
-    </td>
-  </tr>
-  <tr>
-    <td align="center">
-      <img src="Screenshots/IMG_5877.PNG" alt="Route Selection Screen" width="220" />
-      <br />
-      <strong>Escalation Sequence</strong>
-    </td>
-    <td align="center">
-      <img src="Screenshots/IMG_5875.PNG" alt="Active Trip Screen" width="220" />
-      <br />
-      <strong>Choose Route</strong>
-    </td>
-    <td align="center">
-      <img src="Screenshots/IMG_5874.PNG" alt="Escalation Modal" width="220" />
-      <br />
-      <strong>Safety Setup</strong>
-    </td>
-    <td align="center">
-      <img src="Screenshots/IMG_5878.PNG" alt="Feedback Screen" width="220" />
-      <br />
-      <strong>Feedback Screen</strong>
-    </td>
-  </tr>
-</table>
 
 ## Setup
 
