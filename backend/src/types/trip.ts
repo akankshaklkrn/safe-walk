@@ -27,6 +27,7 @@ export interface Trip {
   // ── Route geometry (used by riskEngine for deviation checks) ──────────
   plannedRoute: Location[];   // waypoints from the selected RouteOption
   endLocation: LatLng;        // the route's final point — used for destination detection
+  expectedEtaMinutes: number; // initial ETA from Maps API at trip start
 
   // ── Mutable live state ─────────────────────────────────────────────────
   currentLocation: Location | null;

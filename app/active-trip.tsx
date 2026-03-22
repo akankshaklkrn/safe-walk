@@ -98,6 +98,7 @@ export default function ActiveTripScreen() {
   const hasStartedSessionRef = useRef(false);
   const countdownActiveRef = useRef(false);
   const tripStartTimeRef = useRef(Date.now());
+  const lastContextUpdateRef = useRef(0);
   const fallbackLoc = useRef({
     lat: parseFloat(startLat ?? '40.7128'),
     lng: parseFloat(startLng ?? '-74.0060'),
@@ -126,6 +127,19 @@ export default function ActiveTripScreen() {
   };
 
   const sendEmailAlert = async (alertType: string, message: string) => {
+    console.log('[sendEmailAlert] Starting email alert', { 
+      alertType, 
+      message, 
+      trustedContactEmail,
+      emailAlertBaseUrl 
+    });
+
+    if (!trustedContactEmail) {
+      const errorMsg = 'No trusted contact email configured';
+      console.error('[sendEmailAlert]', errorMsg);
+      throw new Error(errorMsg);
+    }
+
     const activeLocation = currentLocation ?? fallbackLoc.current;
     const payload = {
       userId: `trip-${tripId || 'unknown'}`,
@@ -135,14 +149,20 @@ export default function ActiveTripScreen() {
       alertType,
       message,
       mode: (mode === 'car' ? 'car' : 'walking') as CommuteMode,
-      trustedContactEmail: trustedContactEmail || undefined,
+      trustedContactEmail,
     };
+
+    console.log('[sendEmailAlert] Sending to:', `${emailAlertBaseUrl}/alerts/sos`);
+    console.log('[sendEmailAlert] Payload:', JSON.stringify(payload, null, 2));
 
     const response = await fetch(`${emailAlertBaseUrl}/alerts/sos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+
+    console.log('[sendEmailAlert] Response status:', response.status);
+
     const result = (await response.json()) as {
       ok?: boolean;
       channel?: string;
@@ -150,13 +170,19 @@ export default function ActiveTripScreen() {
       error?: string;
     };
 
+    console.log('[sendEmailAlert] Response body:', result);
+
     if (!response.ok || !result.ok) {
-      throw new Error(result.error || 'Failed to send email alert.');
+      const errorMsg = result.error || 'Failed to send email alert.';
+      console.error('[sendEmailAlert] Failed:', errorMsg);
+      throw new Error(errorMsg);
     }
+
+    console.log('[sendEmailAlert] Success! Alert ID:', result.alertId);
 
     appendMessage({
       id: `${Date.now()}-email-sent`,
-      text: `Email alert sent (${result.channel || 'email'}). Alert ID: ${result.alertId || 'n/a'}.`,
+      text: `Email alert sent to ${trustedContactEmail}. Alert ID: ${result.alertId || 'n/a'}.`,
       timestamp: new Date(),
       sender: 'ai',
     });
@@ -291,6 +317,26 @@ export default function ActiveTripScreen() {
         setStatusReason(result.reason);
         setDeviationLevel(result.deviationLevel ?? 'none');
 
+        // Update ElevenLabs agent with real-time trip data (throttled to once per minute)
+        const now = Date.now();
+        const timeSinceLastUpdate = now - lastContextUpdateRef.current;
+        if (conversation.status === 'connected' && timeSinceLastUpdate > 60000) {
+          const etaText = result.remainingEtaMinutes === 1 
+            ? '1 minute' 
+            : `${result.remainingEtaMinutes} minutes`;
+          const progressText = `${result.progressPercent}%`;
+          const routeStatus = result.distanceFromRouteMeters < 50 
+            ? 'on track' 
+            : `${Math.round(result.distanceFromRouteMeters)}m off route`;
+          
+          const updateMessage = `Trip update: ${etaText} remaining to ${destinationName}. Progress: ${progressText} along route. Currently ${routeStatus}.`;
+          console.log('[ElevenLabs] Sending contextual update:', updateMessage);
+          conversation.sendContextualUpdate(updateMessage);
+          lastContextUpdateRef.current = now;
+        } else if (conversation.status !== 'connected') {
+          console.log('[ElevenLabs] Skipping update - conversation status:', conversation.status);
+        }
+
         if (result.rejoinedRoute) {
           setRejoinedBanner(true);
           setTimeout(() => setRejoinedBanner(false), 3000);
@@ -321,6 +367,8 @@ export default function ActiveTripScreen() {
     }
 
     hasStartedSessionRef.current = true;
+    console.log('[ElevenLabs] Starting session with agent:', agentId);
+    console.log('[ElevenLabs] Dynamic variables:', { destination: destinationName, route_name: selectedRouteName, safe_word_enabled: Boolean(configuredSafeWord) });
     conversation
       .startSession({
         agentId,
@@ -333,9 +381,9 @@ export default function ActiveTripScreen() {
         },
       })
       .then(() => {
-        conversation.sendContextualUpdate(
-          `SafeWalk trip started. Destination: ${destinationName}. Route: ${selectedRouteName}. Keep the user company for the full trip.`
-        );
+        const initialMessage = `SafeWalk trip started. Destination: ${destinationName}. Route: ${selectedRouteName}. Keep the user company for the full trip. When the user asks about ETA or time remaining, you will receive regular trip updates with this information.`;
+        console.log('[ElevenLabs] Session started, sending initial context:', initialMessage);
+        conversation.sendContextualUpdate(initialMessage);
       })
       .catch((error: unknown) => {
         const message =

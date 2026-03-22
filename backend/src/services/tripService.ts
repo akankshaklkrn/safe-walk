@@ -76,6 +76,7 @@ export function buildTrip(params: StartTripParams): {
     trustedContact,
     plannedRoute:   selectedRoute.waypoints,   // replaces HARDCODED_ROUTE
     endLocation:    selectedRoute.endLocation, // used by completionService
+    expectedEtaMinutes: selectedRoute.etaMinutes, // for real-time ETA calculations
     currentLocation:     null,
     startTime:           now,
     lastLocationUpdate:  null,

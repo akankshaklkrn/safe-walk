@@ -69,6 +69,12 @@ export interface LocationUpdateResult {
   tripCompleted: boolean;
   /** Non-null when tripCompleted is true */
   summary: TripSummaryRaw | null;
+  /** Real-time ETA remaining in minutes (from Maps API) */
+  remainingEtaMinutes: number;
+  /** Current distance from route in meters */
+  distanceFromRouteMeters: number;
+  /** Progress along route (0-100%) */
+  progressPercent: number;
 }
 
 // ---------------------------------------------------------------------------

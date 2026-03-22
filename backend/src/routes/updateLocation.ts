@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { tripStore } from '../store/tripStore';
 import { evaluateRisk, shouldEscalate } from '../logic/riskEngine';
-import { distanceFromRoute } from '../utils/geometry';
+import { distanceFromRoute, progressAlongRoute } from '../utils/geometry';
 import { classifyDeviation } from '../utils/deviationClassifier';
 import { getDeviationConfig } from '../config/deviationConfig';
 import { detectRecovery } from '../utils/recoveryDetector';
@@ -23,6 +23,8 @@ router.post('/', (req: Request, res: Response) => {
 
   // Short-circuit: once escalated, no further processing needed
   if (trip.escalated) {
+    const distM = distanceFromRoute({ lat, lng }, trip.plannedRoute);
+    const progress = progressAlongRoute({ lat, lng }, trip.plannedRoute);
     return res.json({
       status:           'RED',
       reason:           'Trip already escalated',
@@ -31,6 +33,9 @@ router.post('/', (req: Request, res: Response) => {
       rejoinedRoute:    false,
       tripCompleted:    false,
       summary:          null,
+      remainingEtaMinutes: Math.max(0, Math.round(trip.expectedEtaMinutes * (1 - progress))),
+      distanceFromRouteMeters: Math.round(distM),
+      progressPercent: Math.min(100, Math.round(progress * 100)),
     });
   }
 
@@ -45,6 +50,14 @@ router.post('/', (req: Request, res: Response) => {
   const deviationLevel = classifyDeviation(
     distRounded,
     getDeviationConfig(trip.mode),
+  );
+
+  // ── Progress and ETA calculation ───────────────────────────────────────
+  const progress = progressAlongRoute({ lat, lng }, trip.plannedRoute);
+  const progressPercent = Math.min(100, Math.round(progress * 100));
+  const remainingEtaMinutes = Math.max(
+    0,
+    Math.round(trip.expectedEtaMinutes * (1 - progress)),
   );
 
   // ── Risk evaluation (inactivity, SOS, danger word, deviation) ──────────
@@ -103,6 +116,9 @@ router.post('/', (req: Request, res: Response) => {
       summary:         cachedSummary,
       currentLocation: trip.currentLocation,
       timestamp:       now.toISOString(),
+      remainingEtaMinutes,
+      distanceFromRouteMeters: distRounded,
+      progressPercent,
     });
   }
 
@@ -143,6 +159,9 @@ router.post('/', (req: Request, res: Response) => {
     summary,
     currentLocation: trip.currentLocation,
     timestamp:       now.toISOString(),
+    remainingEtaMinutes,
+    distanceFromRouteMeters: distRounded,
+    progressPercent,
   });
 });
 
