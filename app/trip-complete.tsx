@@ -1,10 +1,60 @@
+import { useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { colors } from '../constants/colors';
 import { deviationLevelLabel, formatDuration, type DeviationLevel } from '../services/api';
+import type { AIMessage } from '../data/mockMessages';
+
+async function generateTripFeedback(
+  messages: AIMessage[],
+  destination: string,
+  durationMin: number,
+): Promise<string> {
+  const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+  if (!apiKey || messages.length === 0) {
+    return 'No conversation recorded for this trip.';
+  }
+
+  const transcript = messages
+    .map((m) => `${m.sender === 'ai' ? 'SafeWalk' : 'You'}: ${m.text}`)
+    .join('\n');
+
+  const prompt = [
+    `A user just completed a SafeWalk trip to "${destination}" in ${durationMin} minutes.`,
+    'Here is the conversation transcript between the AI safety companion and the user:',
+    '',
+    transcript,
+    '',
+    'Based on this conversation, write a short, friendly trip feedback summary (3–5 sentences).',
+    'Mention: how the trip went, any safety moments or deviations noted, and a positive closing note.',
+    'Do not use bullet points. Write in plain prose.',
+  ].join('\n');
+
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const res = await fetch(url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents:         [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.7 },
+      }),
+    });
+
+    if (!res.ok) return 'Could not generate feedback right now. Try again later.';
+
+    const data = (await res.json()) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
+      ?? 'Could not generate feedback right now.';
+  } catch {
+    return 'Could not generate feedback right now. Check your connection.';
+  }
+}
 
 export default function TripCompleteScreen() {
   const router = useRouter();
@@ -18,6 +68,7 @@ export default function TripCompleteScreen() {
     destination,
     routeName,
     wasEscalated,
+    conversationLog,
   } = useLocalSearchParams<{
     tripId: string;
     completedAt: string;
@@ -28,17 +79,33 @@ export default function TripCompleteScreen() {
     destination: string;
     routeName: string;
     wasEscalated?: string;
+    conversationLog?: string;
   }>();
 
-  const durationSec   = parseInt(actualDurationSeconds ?? '0', 10);
-  const durationMin   = parseInt(actualDurationMinutes ?? '0', 10);
-  const finalDistM    = parseInt(finalDistanceFromRouteMeters ?? '0', 10);
-  const deviationLvl  = (finalDeviationLevel ?? 'none') as DeviationLevel;
-  const isEscalated   = wasEscalated === 'true';
+  const [feedback, setFeedback]         = useState<string | null>(null);
+  const [loadingFeedback, setLoading]   = useState(false);
+
+  const durationSec  = parseInt(actualDurationSeconds ?? '0', 10);
+  const durationMin  = parseInt(actualDurationMinutes ?? '0', 10);
+  const finalDistM   = parseInt(finalDistanceFromRouteMeters ?? '0', 10);
+  const deviationLvl = (finalDeviationLevel ?? 'none') as DeviationLevel;
+  const isEscalated  = wasEscalated === 'true';
 
   const arrivedAt = completedAt
     ? new Date(completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : '';
+
+  const parsedMessages: AIMessage[] = (() => {
+    try { return conversationLog ? (JSON.parse(conversationLog) as AIMessage[]) : []; }
+    catch { return []; }
+  })();
+
+  const handleGetFeedback = async () => {
+    setLoading(true);
+    const result = await generateTripFeedback(parsedMessages, destination ?? 'your destination', durationMin);
+    setFeedback(result);
+    setLoading(false);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -106,6 +173,40 @@ export default function TripCompleteScreen() {
 
         </View>
 
+        {/* ── AI Feedback ───────────────────────────────────────────── */}
+        <View style={styles.feedbackSection}>
+          <Text style={styles.feedbackHeading}>Trip Feedback</Text>
+          <Text style={styles.feedbackSub}>
+            Get an AI-generated summary of your trip companion conversation.
+          </Text>
+
+          {!feedback && !loadingFeedback && (
+            <TouchableOpacity style={styles.feedbackButton} onPress={() => void handleGetFeedback()}>
+              <Text style={styles.feedbackButtonText}>✨ Generate Trip Feedback</Text>
+            </TouchableOpacity>
+          )}
+
+          {loadingFeedback && (
+            <View style={styles.feedbackLoading}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={styles.feedbackLoadingText}>Generating your trip summary…</Text>
+            </View>
+          )}
+
+          {feedback && (
+            <View style={styles.feedbackCard}>
+              <Text style={styles.feedbackCardTitle}>🤖 Your Trip Summary</Text>
+              <Text style={styles.feedbackCardText}>{feedback}</Text>
+              <TouchableOpacity
+                style={styles.feedbackRetry}
+                onPress={() => { setFeedback(null); void handleGetFeedback(); }}
+              >
+                <Text style={styles.feedbackRetryText}>Regenerate</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
         {/* ── Actions ───────────────────────────────────────────────── */}
         <TouchableOpacity
           style={styles.homeButton}
@@ -132,7 +233,6 @@ const styles = StyleSheet.create({
   heroAlert:       { fontSize: 14, color: colors.red, fontWeight: '600', textAlign: 'center', paddingHorizontal: 32, marginTop: 4 },
 
   cards: { gap: 12, marginBottom: 24 },
-
   card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -155,6 +255,47 @@ const styles = StyleSheet.create({
   cardValue:     { fontSize: 18, fontWeight: '700', color: colors.text },
   cardValueMono: { fontSize: 11, fontFamily: 'monospace', color: colors.gray[600], lineHeight: 18 },
   cardSub:       { fontSize: 12, color: colors.textLight, marginTop: 2 },
+
+  feedbackSection: {
+    marginBottom: 24,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+    gap: 12,
+  },
+  feedbackHeading: { fontSize: 17, fontWeight: '700', color: colors.text },
+  feedbackSub:     { fontSize: 13, color: colors.textLight, lineHeight: 18 },
+
+  feedbackButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  feedbackButtonText: { color: colors.white, fontSize: 15, fontWeight: '700' },
+
+  feedbackLoading: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
+  feedbackLoadingText: { fontSize: 14, color: colors.textLight },
+
+  feedbackCard: {
+    backgroundColor: '#F0F7FF',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    gap: 10,
+  },
+  feedbackCardTitle: { fontSize: 14, fontWeight: '700', color: colors.primary },
+  feedbackCardText:  { fontSize: 14, color: colors.text, lineHeight: 22 },
+  feedbackRetry: { alignSelf: 'flex-end' },
+  feedbackRetryText: { fontSize: 13, color: colors.primary, fontWeight: '600' },
 
   homeButton: {
     backgroundColor: colors.primary,

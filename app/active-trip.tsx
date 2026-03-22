@@ -247,6 +247,7 @@ export default function ActiveTripScreen() {
         finalDeviationLevel: summary.finalDeviationLevel,
         destination: destination ?? '',
         routeName: routeName ?? '',
+        conversationLog: JSON.stringify(aiMessages),
       },
     });
   };
@@ -491,6 +492,7 @@ export default function ActiveTripScreen() {
                 destination:                  destination ?? '',
                 routeName:                    routeName ?? '',
                 wasEscalated:                 String(escalated),
+                conversationLog:              JSON.stringify(aiMessages),
               },
             });
           },
