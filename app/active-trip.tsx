@@ -52,6 +52,7 @@ export default function ActiveTripScreen() {
     polyline,
     routeName,
     safeWord,
+    trustedContactEmail,
   } = useLocalSearchParams<{
     tripId: string;
     destination: string;
@@ -65,6 +66,7 @@ export default function ActiveTripScreen() {
     polyline: string;
     routeName: string;
     safeWord: string;
+    trustedContactEmail: string;
   }>();
 
   const [safetyStatus, setSafetyStatus] = useState<SafetyStatus>('safe');
@@ -111,6 +113,11 @@ export default function ActiveTripScreen() {
     : '';
   const tokenFetchUrl =
     useServerToken && apiBaseUrl ? `${apiBaseUrl}/api/elevenlabs-token` : undefined;
+  const emailAlertBaseUrl = process.env.EXPO_PUBLIC_BACKEND_URL
+    ? process.env.EXPO_PUBLIC_BACKEND_URL
+    : Constants.expoConfig?.hostUri
+      ? `http://${Constants.expoConfig.hostUri.split(':')[0]}:3001`
+      : 'http://localhost:3001';
 
   const appendMessage = (message: AIMessage) => {
     setAiMessages((prev) => [...prev, message]);
@@ -379,11 +386,59 @@ export default function ActiveTripScreen() {
     void handleEscalation('Emergency contact requested from safety alert');
   };
 
-  const handleSOS = () => {
+  const handleSOS = async () => {
     if (tripId) {
       submitCheckResponse(tripId, 'sos').catch(() => undefined);
     }
-    void handleEscalation('Manual SOS');
+
+    const activeLocation = currentLocation ?? fallbackLoc.current;
+    const payload = {
+      userId: `trip-${tripId || 'unknown'}`,
+      tripId: tripId || 'unknown-trip',
+      location: activeLocation,
+      timestamp: new Date().toISOString(),
+      alertType: 'sos',
+      message: `Manual SOS triggered while heading to ${destinationName}.`,
+      mode: (mode === 'car' ? 'car' : 'walking') as CommuteMode,
+      trustedContactEmail: trustedContactEmail || undefined,
+    };
+
+    let escalationReason = 'Manual SOS';
+    try {
+      const response = await fetch(`${emailAlertBaseUrl}/alerts/sos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const result = (await response.json()) as {
+        ok?: boolean;
+        channel?: string;
+        alertId?: string;
+        error?: string;
+      };
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || 'Failed to send email alert.');
+      }
+
+      appendMessage({
+        id: `${Date.now()}-email-sent`,
+        text: `Email alert sent (${result.channel || 'email'}). Alert ID: ${result.alertId || 'n/a'}.`,
+        timestamp: new Date(),
+        sender: 'ai',
+      });
+      escalationReason = 'Manual SOS with email alert sent';
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Could not send email alert.';
+      appendMessage({
+        id: `${Date.now()}-email-failed`,
+        text: `Email alert failed: ${errorMessage}`,
+        timestamp: new Date(),
+        sender: 'ai',
+      });
+      escalationReason = `Manual SOS (email failed: ${errorMessage})`;
+    }
+
+    void handleEscalation(escalationReason);
   };
 
   const handleEndTrip = async () => {

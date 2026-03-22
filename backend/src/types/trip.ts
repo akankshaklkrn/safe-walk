@@ -12,7 +12,7 @@ export interface Location {
 export interface TrustedContact {
   name: string;
   phone: string;
-  email?: string;
+  email: string;
 }
 
 export interface Trip {

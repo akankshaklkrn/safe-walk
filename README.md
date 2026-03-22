@@ -115,3 +115,34 @@ npm run web      # Web browser
 - Smooth navigation with Expo Router
 - Modal-based interactions
 - Responsive layouts for mobile and web
+
+## Local Email Flow From App
+
+This is the local integration path: `SOS button -> local backend -> SMTP email`.
+
+1. Copy env template:
+```bash
+cp .env.example .env
+```
+
+2. Configure email fields in `.env`:
+- `ALERT_PROVIDER=email`
+- `EMERGENCY_CONTACT_EMAIL`
+- `EMAIL_SMTP_HOST`
+- `EMAIL_SMTP_PORT`
+- `EMAIL_SMTP_SECURE`
+- `EMAIL_SMTP_USER`
+- `EMAIL_SMTP_PASS`
+- `EMAIL_FROM`
+
+3. Start backend:
+```bash
+npm run backend:start
+```
+
+4. Start Expo app in a second terminal:
+```bash
+npm start
+```
+
+5. Tap `SOS` in the app. The success popup should show `Provider: Email`.

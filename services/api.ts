@@ -41,7 +41,7 @@ export interface TripSession {
   checkInTimeoutMs: number;
   startLocation: { lat: number; lng: number };
   endLocation:   { lat: number; lng: number };
-  trustedContact: { name: string; phone: string };
+  trustedContact: { name: string; phone: string; email: string };
 }
 
 /** Summary returned by backend when destination is reached (Milestone 7) */
@@ -235,7 +235,7 @@ export async function fetchRoutes(
 export async function startTrip(params: {
   userId: string;
   destination: string;
-  trustedContact: { name: string; phone: string };
+  trustedContact: { name: string; phone: string; email: string };
   selectedRoute: RouteOptionRaw;
   currentLocation: { lat: number; lng: number };
 }): Promise<TripSession> {

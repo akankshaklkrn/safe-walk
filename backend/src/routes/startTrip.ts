@@ -40,6 +40,9 @@ router.post('/', (req: Request, res: Response) => {
   if (!trustedContact?.phone) {
     return res.status(400).json({ error: 'trustedContact.phone is required' });
   }
+  if (!trustedContact?.email || typeof trustedContact.email !== 'string') {
+    return res.status(400).json({ error: 'trustedContact.email is required' });
+  }
   if (!isValidRouteOption(selectedRoute)) {
     return res.status(400).json({
       error: 'selectedRoute must be a valid RouteOption from POST /routes',

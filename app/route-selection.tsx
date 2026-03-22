@@ -9,6 +9,7 @@ import { colors } from '../constants/colors';
 import { generateRouteSummary } from '../services/p3';
 import RouteCard from '../components/RouteCard';
 import type { Route, CommuteMode } from '../types';
+import { useTripContext } from '../context/TripContext';
 import {
   fetchRoutes,
   startTrip,
@@ -23,6 +24,7 @@ export default function RouteSelectionScreen() {
     safeWord: string;
   }>();
   const router = useRouter();
+  const { tripSetupData } = useTripContext();
 
   // Routes are stored as display Route (for RouteCard) + raw RouteOptionRaw (for startTrip)
   const [routes, setRoutes]               = useState<Array<Route & { _raw: RouteOptionRaw }>>([]);
@@ -60,13 +62,23 @@ export default function RouteSelectionScreen() {
 
   const handleStartTrip = async () => {
     if (!selectedRoute) return;
+    const primaryContact = tripSetupData?.emergencyContacts.find((c) => c.isPrimary);
+    if (!primaryContact) {
+      setError('Please add a primary emergency contact in Safety Setup.');
+      return;
+    }
+
     setStarting(true);
     try {
       const currentLocation = await getCurrentLocation();
       const session = await startTrip({
         userId:         'user_001',
         destination:    destination ?? '',
-        trustedContact: { name: 'Emergency Contact', phone: '+1234567890' },
+        trustedContact: {
+          name: primaryContact.name,
+          phone: primaryContact.phoneNumber,
+          email: primaryContact.email,
+        },
         selectedRoute:  selectedRoute._raw,
         currentLocation,
       });
@@ -87,6 +99,7 @@ export default function RouteSelectionScreen() {
           polyline:        selectedRoute._raw.polyline ?? '',
           routeName:       selectedRoute.name,
           safeWord:        safeWord ?? '',
+          trustedContactEmail: session.trustedContact.email,
         },
       });
     } catch (e) {
