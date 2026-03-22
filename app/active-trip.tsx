@@ -12,7 +12,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { Audio } from 'expo-av';
 import { colors } from '../constants/colors';
-import type { SafetyStatus, CommuteMode } from '../types';
+import type { CheckInFrequency, SafetyStatus, CommuteMode } from '../types';
 import MapView from '../components/MapView';
 import SafetyStatusIndicator from '../components/SafetyStatusIndicator';
 import SOSButton from '../components/SOSButton';
@@ -51,6 +51,7 @@ export default function ActiveTripScreen() {
     polyline,
     routeName,
     safeWord,
+    checkInFrequency,
     isSilentMode,
     routeDeviationAlerts,
     trustedContactEmail,
@@ -67,6 +68,7 @@ export default function ActiveTripScreen() {
     polyline: string;
     routeName: string;
     safeWord: string;
+    checkInFrequency: CheckInFrequency;
     isSilentMode: string;
     routeDeviationAlerts: string;
     trustedContactEmail: string;
@@ -117,9 +119,23 @@ export default function ActiveTripScreen() {
   escalatedRef.current = escalated;
 
   const configuredSafeWord = typeof safeWord === 'string' ? safeWord : '';
+  const selectedCheckInFrequency: CheckInFrequency =
+    checkInFrequency === '5min' || checkInFrequency === '10min' || checkInFrequency === 'smart'
+      ? checkInFrequency
+      : 'smart';
   const silentModeEnabled = isSilentMode === 'true';
   const destinationName = destination || 'your destination';
   const selectedRouteName = routeName || 'your selected route';
+  const checkInFrequencyLabel =
+    selectedCheckInFrequency === '5min'
+      ? '5 minutes'
+      : selectedCheckInFrequency === '10min'
+        ? '10 minutes'
+        : 'smart';
+  const checkInInstruction =
+    selectedCheckInFrequency === 'smart'
+      ? 'Use your normal conversational behavior and only check in naturally when it fits the conversation or safety context.'
+      : `After your first brief greeting, remain mostly silent unless the user speaks first, a safety concern appears, or it is time for the scheduled ${checkInFrequencyLabel} check-in.`;
   const agentId = process.env.EXPO_PUBLIC_ELEVENLABS_AGENT_ID;
   const useServerToken = process.env.EXPO_PUBLIC_ELEVENLABS_USE_SERVER_TOKEN === 'true';
   const apiBaseUrl = Constants.expoConfig?.hostUri
@@ -132,6 +148,12 @@ export default function ActiveTripScreen() {
     : Constants.expoConfig?.hostUri
       ? `http://${Constants.expoConfig.hostUri.split(':')[0]}:3000`
       : 'http://localhost:3000';
+  const scheduledCheckInIntervalMs =
+    selectedCheckInFrequency === '5min'
+      ? 5 * 60 * 1000
+      : selectedCheckInFrequency === '10min'
+        ? 10 * 60 * 1000
+        : null;
 
   const appendMessage = (message: AIMessage) => {
     setAiMessages((prev) => [...prev, message]);
@@ -430,10 +452,13 @@ export default function ActiveTripScreen() {
           destination: destinationName,
           route_name: selectedRouteName,
           safe_word_enabled: Boolean(configuredSafeWord),
+          check_in_frequency: checkInFrequencyLabel,
         },
       })
       .then(() => {
-        const initialMessage = `SafeWalk trip started. Destination: ${destinationName}. Route: ${selectedRouteName}. Keep the user company for the full trip. When the user asks about ETA or time remaining, you will receive regular trip updates with this information.`;
+        const initialMessage = selectedCheckInFrequency === 'smart'
+          ? `SafeWalk trip started. Destination: ${destinationName}. Route: ${selectedRouteName}. Keep the user company for the full trip. Check-in preference: ${checkInFrequencyLabel}. ${checkInInstruction} When the user asks about ETA or time remaining, you will receive regular trip updates with this information. Treat those trip updates as silent context unless the user asks about them directly.`
+          : `SafeWalk trip started. Destination: ${destinationName}. Route: ${selectedRouteName}. Check-in preference: ${checkInFrequencyLabel}. Give one brief opening greeting, then stay mostly silent unless the user speaks first, a safety concern appears, or the scheduled check-in time arrives. When scheduled check-ins arrive, ask one short gentle check-in question, then return to quiet mode. Treat trip updates as silent context unless the user asks about them directly.`;
         console.log('[ElevenLabs] Session started, sending initial context:', initialMessage);
         conversation.sendContextualUpdate(initialMessage);
       })
@@ -449,9 +474,29 @@ export default function ActiveTripScreen() {
     destinationName,
     safetyStatus,
     selectedRouteName,
+    selectedCheckInFrequency,
     tokenFetchUrl,
     micPermissionGranted,
   ]);
+
+  useEffect(() => {
+    if (
+      scheduledCheckInIntervalMs === null ||
+      conversation.status !== 'connected' ||
+      escalated ||
+      safetyStatus === 'risk'
+    ) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      conversation.sendContextualUpdate(
+        `Scheduled check-in now. Ask one brief, gentle check-in question, then return to quiet mode unless the user continues the conversation or there is a safety concern.`
+      );
+    }, scheduledCheckInIntervalMs);
+
+    return () => clearInterval(interval);
+  }, [conversation, escalated, safetyStatus, scheduledCheckInIntervalMs]);
 
   useEffect(() => {
     return () => {

@@ -15,7 +15,7 @@ import * as ExpoLocation from 'expo-location';
 import { colors } from '../constants/colors';
 import { useAuthContext } from '../context/AuthContext';
 import { useTripContext } from '../context/TripContext';
-import { EmergencyContact, Location, LocationPermissionStatus } from '../types';
+import { CheckInFrequency, EmergencyContact, Location, LocationPermissionStatus } from '../types';
 
 export default function SafetySetupScreen() {
   const router = useRouter();
@@ -45,7 +45,7 @@ export default function SafetySetupScreen() {
     relationship: '',
   });
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
-  const [checkInFrequency, setCheckInFrequency] = useState<'5min' | '15min' | 'smart'>('smart');
+  const [checkInFrequency, setCheckInFrequency] = useState<CheckInFrequency>('smart');
   const [isSilentMode, setIsSilentMode] = useState(false);
   const [routeDeviationAlerts, setRouteDeviationAlerts] = useState(true);
 
@@ -182,6 +182,7 @@ export default function SafetySetupScreen() {
         currentLocation,
         locationPermissionStatus,
         emergencyContacts,
+        checkInFrequency,
         isSilentMode,
         routeDeviationAlerts,
       });
@@ -192,6 +193,7 @@ export default function SafetySetupScreen() {
           destination,
           mode,
           safeWord,
+          checkInFrequency: String(checkInFrequency),
           isSilentMode: String(isSilentMode),
           routeDeviationAlerts: String(routeDeviationAlerts),
         },
@@ -357,11 +359,11 @@ export default function SafetySetupScreen() {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.frequencyOption, checkInFrequency === '15min' && styles.frequencyOptionActive]}
-              onPress={() => setCheckInFrequency('15min')}
+              style={[styles.frequencyOption, checkInFrequency === '10min' && styles.frequencyOptionActive]}
+              onPress={() => setCheckInFrequency('10min')}
             >
-              <Text style={[styles.frequencyText, checkInFrequency === '15min' && styles.frequencyTextActive]}>
-                15 Min
+              <Text style={[styles.frequencyText, checkInFrequency === '10min' && styles.frequencyTextActive]}>
+                10 Min
               </Text>
             </TouchableOpacity>
             <TouchableOpacity

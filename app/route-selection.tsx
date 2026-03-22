@@ -7,7 +7,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { colors } from '../constants/colors';
 import { generateRouteSummary, generateMockRouteSummary } from '../services/p3';
 import RouteCard from '../components/RouteCard';
-import type { Route, CommuteMode, RouteSummaryResponse } from '../types';
+import type { CheckInFrequency, Route, CommuteMode, RouteSummaryResponse } from '../types';
 import { useTripContext } from '../context/TripContext';
 import {
   fetchRoutes,
@@ -17,10 +17,11 @@ import {
 } from '../services/api';
 
 export default function RouteSelectionScreen() {
-  const { destination, mode, safeWord, isSilentMode, routeDeviationAlerts } = useLocalSearchParams<{
+  const { destination, mode, safeWord, checkInFrequency, isSilentMode, routeDeviationAlerts } = useLocalSearchParams<{
     destination: string;
     mode: CommuteMode;
     safeWord: string;
+    checkInFrequency: CheckInFrequency;
     isSilentMode: string;
     routeDeviationAlerts: string;
   }>();
@@ -121,6 +122,7 @@ export default function RouteSelectionScreen() {
           polyline:        selectedRoute._raw.polyline ?? '',
           routeName:       selectedRoute.name,
           safeWord:        safeWord ?? '',
+          checkInFrequency: checkInFrequency ?? tripSetupData?.checkInFrequency ?? 'smart',
           isSilentMode:    isSilentMode ?? String(tripSetupData?.isSilentMode ?? false),
           routeDeviationAlerts: routeDeviationAlerts ?? String(tripSetupData?.routeDeviationAlerts ?? true),
           trustedContactEmail: session.trustedContact.email,

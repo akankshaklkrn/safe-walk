@@ -21,6 +21,7 @@ export function TripProvider({ children }: { children: ReactNode }) {
           currentLocation: data.currentLocation || null,
           locationPermissionStatus: data.locationPermissionStatus || 'undetermined',
           emergencyContacts: data.emergencyContacts || [],
+          checkInFrequency: data.checkInFrequency ?? 'smart',
           isSilentMode: data.isSilentMode ?? false,
           routeDeviationAlerts: data.routeDeviationAlerts ?? true,
         };

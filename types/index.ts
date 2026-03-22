@@ -1,5 +1,6 @@
 export type CommuteMode = 'walking' | 'car';
 export type LocationPermissionStatus = 'undetermined' | 'granted' | 'denied';
+export type CheckInFrequency = '5min' | '10min' | 'smart';
 
 export interface Location {
   latitude: number;
@@ -31,6 +32,7 @@ export interface TripSetupData {
   currentLocation: Location | null;
   locationPermissionStatus: LocationPermissionStatus;
   emergencyContacts: EmergencyContact[];
+  checkInFrequency: CheckInFrequency;
   isSilentMode: boolean;
   routeDeviationAlerts: boolean;
 }
