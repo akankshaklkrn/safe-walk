@@ -171,46 +171,46 @@ This keeps the route summary believable, deterministic, and demo-safe.
 <table>
   <tr>
     <td align="center">
-      <img src="Screenshots/IMG_5880.PNG" alt="Login Screen" width="220" />
-      <br />
-      <strong>Login</strong>
-    </td>
-    <td align="center">
-      <img src="Screenshots/IMG_5870.PNG" alt="Sign Up Screen" width="220" />
+      <img src="Screenshots/IMG_5880.PNG" alt="Sign Up Screen" width="220" />
       <br />
       <strong>Sign Up</strong>
     </td>
     <td align="center">
-      <img src="Screenshots/IMG_5879.PNG" alt="Home Screen" width="220" />
+      <img src="Screenshots/IMG_5870.PNG" alt="Login Screen" width="220" />
+      <br />
+      <strong>Login</strong>
+    </td>
+    <td align="center">
+      <img src="Screenshots/IMG_5873.PNG" alt="Home" width="220" />
       <br />
       <strong>Home</strong>
     </td>
     <td align="center">
-      <img src="Screenshots/IMG_5878.PNG" alt="Safety Setup Screen" width="220" />
+      <img src="Screenshots/IMG_5879.PNG" alt="Feedback Screen" width="220" />
       <br />
-      <strong>Safety Setup</strong>
+      <strong>Feedback Screen</strong>
     </td>
   </tr>
   <tr>
     <td align="center">
       <img src="Screenshots/IMG_5877.PNG" alt="Route Selection Screen" width="220" />
       <br />
-      <strong>Route Selection</strong>
+      <strong>Escalation Sequence</strong>
     </td>
     <td align="center">
       <img src="Screenshots/IMG_5875.PNG" alt="Active Trip Screen" width="220" />
       <br />
-      <strong>Active Trip</strong>
+      <strong>Choose Route</strong>
     </td>
     <td align="center">
       <img src="Screenshots/IMG_5874.PNG" alt="Escalation Modal" width="220" />
       <br />
-      <strong>Escalation</strong>
+      <strong>Safety Setup</strong>
     </td>
     <td align="center">
-      <img src="Screenshots/IMG_5873.PNG" alt="Trip Feedback Screen" width="220" />
+      <img src="Screenshots/IMG_5878.PNG" alt="Feedback Screen" width="220" />
       <br />
-      <strong>Trip Feedback</strong>
+      <strong>Feedback Screen</strong>
     </td>
   </tr>
 </table>
