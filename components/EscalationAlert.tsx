@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, Modal, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, StyleSheet, Vibration } from 'react-native';
 import { colors } from '../constants/colors';
 
 interface EscalationAlertProps {
@@ -18,11 +18,25 @@ export default function EscalationAlert({
 }: EscalationAlertProps) {
   const [countdown, setCountdown] = useState(30);
   const hasEscalated = useRef(false);
+  const emergencyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearPendingEscalation = () => {
+    hasEscalated.current = true;
+    setCountdown(30);
+    if (emergencyTimeoutRef.current) {
+      clearTimeout(emergencyTimeoutRef.current);
+      emergencyTimeoutRef.current = null;
+    }
+  };
 
   useEffect(() => {
     if (!visible || escalatedMode) {
       setCountdown(30);
       hasEscalated.current = false;
+      if (emergencyTimeoutRef.current) {
+        clearTimeout(emergencyTimeoutRef.current);
+        emergencyTimeoutRef.current = null;
+      }
       return;
     }
 
@@ -32,7 +46,10 @@ export default function EscalationAlert({
           clearInterval(timer);
           if (!hasEscalated.current) {
             hasEscalated.current = true;
-            setTimeout(() => onEmergencyContact(), 0);
+            emergencyTimeoutRef.current = setTimeout(() => {
+              emergencyTimeoutRef.current = null;
+              onEmergencyContact();
+            }, 0);
           }
           return 0;
         }
@@ -40,8 +57,27 @@ export default function EscalationAlert({
       });
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      if (emergencyTimeoutRef.current) {
+        clearTimeout(emergencyTimeoutRef.current);
+        emergencyTimeoutRef.current = null;
+      }
+    };
   }, [visible, escalatedMode, onEmergencyContact]);
+
+  useEffect(() => {
+    if (!visible || escalatedMode) {
+      Vibration.cancel();
+      return;
+    }
+
+    Vibration.vibrate([0, 700, 500], true);
+
+    return () => {
+      Vibration.cancel();
+    };
+  }, [visible, escalatedMode]);
 
   if (escalatedMode) {
     return (
@@ -71,7 +107,10 @@ export default function EscalationAlert({
             <View style={styles.buttonContainer}>
               <TouchableOpacity
                 style={[styles.button, styles.buttonEmergency]}
-                onPress={onConfirmSafe}
+                onPress={() => {
+                  clearPendingEscalation();
+                  onConfirmSafe();
+                }}
               >
                 <Text style={styles.buttonTextEmergency}>OK, Got It</Text>
               </TouchableOpacity>
@@ -113,14 +152,20 @@ export default function EscalationAlert({
           <View style={styles.buttonContainer}>
             <TouchableOpacity
               style={[styles.button, styles.buttonSafe]}
-              onPress={onConfirmSafe}
+              onPress={() => {
+                clearPendingEscalation();
+                onConfirmSafe();
+              }}
             >
               <Text style={styles.buttonTextSafe}>I'm Safe</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.button, styles.buttonEmergency]}
-              onPress={onEmergencyContact}
+              onPress={() => {
+                clearPendingEscalation();
+                onEmergencyContact();
+              }}
             >
               <Text style={styles.buttonTextEmergency}>Contact Emergency Now</Text>
             </TouchableOpacity>

@@ -133,11 +133,11 @@ export default function ActiveTripScreen() {
   };
 
   const sendEmailAlert = async (alertType: string, message: string) => {
-    console.log('[sendEmailAlert] Starting email alert', { 
-      alertType, 
-      message, 
+    console.log('[sendEmailAlert] Starting email alert', {
+      alertType,
+      message,
       trustedContactEmail,
-      emailAlertBaseUrl 
+      emailAlertBaseUrl
     });
 
     if (!trustedContactEmail) {
@@ -262,6 +262,22 @@ export default function ActiveTripScreen() {
     });
   };
 
+  const navigateEscalatedComplete = () => {
+    const durationSeconds = Math.floor((Date.now() - tripStartTimeRef.current) / 1000);
+
+    router.replace({
+      pathname: '/trip-complete',
+      params: {
+        completedAt: new Date().toISOString(),
+        actualDurationSeconds: String(durationSeconds),
+        finalDistanceFromRouteMeters: '0',
+        destination: destination ?? '',
+        wasEscalated: 'true',
+        elevenLabsConversationId: elevenLabsConversationId ?? '',
+      },
+    });
+  };
+
   const handleEscalation = async (reason: string, alertType = 'critical') => {
     countdownActiveRef.current = false;
     setShowEscalationPrompt(false);
@@ -325,7 +341,18 @@ export default function ActiveTripScreen() {
           return;
         }
 
-        setSafetyStatus(mapBackendStatus(result.status));
+        const backendStatus = mapBackendStatus(result.status);
+        const countdownInProgress =
+          countdownActiveRef.current || showEscalationPrompt || showSOSConfirmation || escalatedRef.current;
+
+        if (!countdownInProgress) {
+          setSafetyStatus(backendStatus);
+        } else if (escalatedRef.current || showSOSConfirmation) {
+          setSafetyStatus('risk');
+        } else {
+          setSafetyStatus('uncertain');
+        }
+
         setStatusReason(result.reason);
         setDeviationLevel(result.deviationLevel ?? 'none');
 
@@ -341,14 +368,14 @@ export default function ActiveTripScreen() {
         const now = Date.now();
         const timeSinceLastUpdate = now - lastContextUpdateRef.current;
         if (conversation.status === 'connected' && timeSinceLastUpdate > 60000) {
-          const etaText = result.remainingEtaMinutes === 1 
-            ? '1 minute' 
+          const etaText = result.remainingEtaMinutes === 1
+            ? '1 minute'
             : `${result.remainingEtaMinutes} minutes`;
           const progressText = `${result.progressPercent}%`;
-          const routeStatus = result.distanceFromRouteMeters < 50 
-            ? 'on track' 
+          const routeStatus = result.distanceFromRouteMeters < 50
+            ? 'on track'
             : `${Math.round(result.distanceFromRouteMeters)}m off route`;
-          
+
           const updateMessage = `Trip update: ${etaText} remaining to ${destinationName}. Progress: ${progressText} along route. Currently ${routeStatus}.`;
           console.log('[ElevenLabs] Sending contextual update:', updateMessage);
           conversation.sendContextualUpdate(updateMessage);
@@ -374,7 +401,7 @@ export default function ActiveTripScreen() {
 
     const interval = setInterval(sendUpdate, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [tripId]);
+  }, [tripId, showEscalationPrompt, showSOSConfirmation]);
 
   useEffect(() => {
     if (hasStartedSessionRef.current || safetyStatus === 'risk' || micPermissionGranted !== true) {
@@ -503,16 +530,16 @@ export default function ActiveTripScreen() {
             router.replace({
               pathname: '/trip-complete',
               params: {
-                tripId:                       tripId ?? 'unknown',
-                completedAt:                  new Date().toISOString(),
-                actualDurationSeconds:        String(durationSeconds),
-                actualDurationMinutes:        String(durationMinutes),
+                tripId: tripId ?? 'unknown',
+                completedAt: new Date().toISOString(),
+                actualDurationSeconds: String(durationSeconds),
+                actualDurationMinutes: String(durationMinutes),
                 finalDistanceFromRouteMeters: '0',
-                finalDeviationLevel:          deviationLevel ?? 'none',
-                destination:                  destination ?? '',
-                routeName:                    routeName ?? '',
-                wasEscalated:                 String(escalated),
-                elevenLabsConversationId:     elevenLabsConversationId ?? '',
+                finalDeviationLevel: deviationLevel ?? 'none',
+                destination: destination ?? '',
+                routeName: routeName ?? '',
+                wasEscalated: String(escalated),
+                elevenLabsConversationId: elevenLabsConversationId ?? '',
               },
             });
           },
@@ -573,10 +600,10 @@ export default function ActiveTripScreen() {
   const arrivalTime =
     liveEtaMinutes !== null
       ? new Date(Date.now() + liveEtaMinutes * 60_000).toLocaleTimeString('en-US', {
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true,
-        })
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      })
       : '—';
 
   return (
@@ -631,7 +658,7 @@ export default function ActiveTripScreen() {
           </View>
 
           <View style={styles.headerInfo}>
-            <Text style={styles.headerName}>SafeBot AI</Text>
+            <Text style={styles.headerName}>SafeWalk AI</Text>
             <View style={styles.headerStatus}>
               <View style={styles.statusDot} />
               <Text style={styles.statusLabel}>WATCHING OVER YOU</Text>
@@ -739,8 +766,8 @@ export default function ActiveTripScreen() {
       <EscalationAlert
         visible={showSOSConfirmation}
         escalatedMode
-        onConfirmSafe={() => setShowSOSConfirmation(false)}
-        onEmergencyContact={() => setShowSOSConfirmation(false)}
+        onConfirmSafe={navigateEscalatedComplete}
+        onEmergencyContact={navigateEscalatedComplete}
       />
     </View>
   );
