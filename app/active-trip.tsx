@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -116,6 +116,39 @@ export default function ActiveTripScreen() {
     setAiMessages((prev) => [...prev, message]);
   };
 
+  const conversation = useTripConversation({
+    tokenFetchUrl,
+    onConnect: ({ conversationId }: { conversationId: string }) => {
+      setVoiceStatus(`Companion connected: ${conversationId}`);
+    },
+    onDisconnect: () => {
+      setVoiceStatus('Companion disconnected');
+    },
+    onError: (error: string) => {
+      setVoiceStatus(error || 'Conversation failed');
+    },
+    onModeChange: ({ mode: conversationMode }: { mode: 'speaking' | 'listening' }) => {
+      setVoiceStatus(conversationMode === 'speaking' ? 'AI companion speaking' : 'Listening');
+    },
+    onMessage: ({
+      message,
+      source,
+    }: {
+      message: string;
+      source: 'user' | 'ai';
+    }) => {
+      appendMessage({
+        id: `${Date.now()}-${source}`,
+        text: message,
+        timestamp: new Date(),
+        sender: source === 'user' ? 'user' : 'ai',
+      });
+
+      if (source === 'user' && configuredSafeWord && containsSafeWord(message, configuredSafeWord)) {
+        void handleEscalation('Safe word detected in live conversation');
+      }
+    },
+  });
   const navigateToComplete = (summary: TripSummaryRaw) => {
     router.replace({
       pathname: '/trip-complete',
@@ -155,35 +188,6 @@ export default function ActiveTripScreen() {
       [{ text: 'OK' }]
     );
   };
-
-  const conversation = useTripConversation({
-    tokenFetchUrl,
-    onConnect: ({ conversationId }) => {
-      setVoiceStatus(`Companion connected: ${conversationId}`);
-    },
-    onDisconnect: () => {
-      setVoiceStatus('Companion disconnected');
-    },
-    onError: (error) => {
-      const msg = typeof error === 'string' ? error : 'Conversation failed';
-      setVoiceStatus(msg);
-    },
-    onModeChange: ({ mode: conversationMode }) => {
-      setVoiceStatus(conversationMode === 'speaking' ? 'AI companion speaking' : 'Listening');
-    },
-    onMessage: ({ message, source }) => {
-      appendMessage({
-        id: `${Date.now()}-${source}`,
-        text: message,
-        timestamp: new Date(),
-        sender: source === 'user' ? 'user' : 'ai',
-      });
-
-      if (source === 'user' && configuredSafeWord && containsSafeWord(message, configuredSafeWord)) {
-        void handleEscalation('Safe word detected in live conversation');
-      }
-    },
-  });
 
   useEffect(() => {
     Audio.requestPermissionsAsync()
@@ -291,9 +295,10 @@ export default function ActiveTripScreen() {
           `SafeWalk trip started. Destination: ${destinationName}. Route: ${selectedRouteName}. Keep the user company for the full trip.`
         );
       })
-      .catch((error) => {
-        const msg = error instanceof Error ? error.message : 'Could not start conversation';
-        setVoiceStatus(msg);
+      .catch((error: unknown) => {
+        const message =
+          error instanceof Error ? error.message : 'Could not start conversation';
+        setVoiceStatus(message);
       });
   }, [
     agentId,
