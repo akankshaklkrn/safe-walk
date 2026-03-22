@@ -92,7 +92,19 @@ export default function SafetySetupScreen() {
       const { latitude, longitude } = location.coords;
       const reverseGeocode = await ExpoLocation.reverseGeocodeAsync({ latitude, longitude });
       const address = reverseGeocode[0]
-        ? `${reverseGeocode[0].street || ''}, ${reverseGeocode[0].city || ''}, ${reverseGeocode[0].region || ''}`
+        ? [
+            reverseGeocode[0].name,
+            reverseGeocode[0].street,
+            reverseGeocode[0].district,
+            reverseGeocode[0].city,
+            reverseGeocode[0].region,
+          ]
+            .map((part) => part?.trim())
+            .filter((part, index, parts) => {
+              if (!part) return false;
+              return parts.indexOf(part) === index;
+            })
+            .join(', ')
         : undefined;
 
       setCurrentLocation({ latitude, longitude, address });
