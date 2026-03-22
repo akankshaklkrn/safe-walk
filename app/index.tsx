@@ -32,11 +32,24 @@ export default function HomeScreen() {
   const [showDropdown, setShowDropdown] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [safeWordMode, setSafeWordMode] = useState<'saved' | 'new'>('saved');
+  const [newSafeWord, setNewSafeWord] = useState('');
+
+  const hasSavedWord = Boolean(profile?.safeWord);
+  const effectiveSafeWord =
+    safeWordMode === 'saved' && hasSavedWord ? (profile!.safeWord ?? '') : newSafeWord;
+
   useEffect(() => {
     if (!loading && !authUser) {
       router.replace('/login');
     }
   }, [authUser, loading, router]);
+
+  useEffect(() => {
+    if (profile && !profile.safeWord) {
+      setSafeWordMode('new');
+    }
+  }, [profile]);
 
 
   const handleDestinationChange = (text: string) => {
@@ -62,14 +75,16 @@ export default function HomeScreen() {
   };
 
   const handleFindRoutes = () => {
-    if (!destination.trim()) {
-      return;
+    if (!destination.trim() || !effectiveSafeWord.trim()) return;
+
+    if (safeWordMode === 'new' && newSafeWord.trim()) {
+      void saveProfile({ safeWord: newSafeWord.trim() });
     }
 
     setShowDropdown(false);
     router.push({
       pathname: '/safety-setup',
-      params: { destination, mode, safeWord: profile?.safeWord ?? '' },
+      params: { destination, mode, safeWord: effectiveSafeWord.trim() },
     });
   };
 
@@ -189,6 +204,60 @@ export default function HomeScreen() {
             ))}
         </View>
 
+        {/* Danger Word */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>DANGER WORD</Text>
+
+          {/* Saved / New toggle */}
+          <View style={styles.swToggle}>
+            <TouchableOpacity
+              style={[styles.swOption, safeWordMode === 'saved' && styles.swOptionActive]}
+              onPress={() => setSafeWordMode('saved')}
+              disabled={!hasSavedWord}
+              activeOpacity={0.7}
+            >
+              <Text style={[
+                styles.swOptionText,
+                safeWordMode === 'saved' && styles.swOptionTextActive,
+                !hasSavedWord && styles.swOptionTextDisabled,
+              ]}>
+                Use saved word
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.swOption, safeWordMode === 'new' && styles.swOptionActive]}
+              onPress={() => setSafeWordMode('new')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.swOptionText, safeWordMode === 'new' && styles.swOptionTextActive]}>
+                Create new
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Display: saved word box OR new word input */}
+          {safeWordMode === 'saved' && hasSavedWord ? (
+            <View style={styles.savedWordBox}>
+              <Text style={styles.savedWordLabel}>SAVED WORD</Text>
+              <Text style={styles.savedWordValue}>{profile!.safeWord}</Text>
+            </View>
+          ) : (
+            <TextInput
+              style={styles.swInput}
+              placeholder="e.g. umbrella, lighthouse…"
+              placeholderTextColor={colors.gray[400]}
+              value={newSafeWord}
+              onChangeText={setNewSafeWord}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          )}
+
+          <Text style={styles.swHelper}>
+            If this word is spoken, SafeWalk will trigger emergency escalation.
+          </Text>
+        </View>
+
         {/* Recent Destinations */}
         <View style={styles.section}>
           <View style={styles.recentHeader}>
@@ -217,9 +286,9 @@ export default function HomeScreen() {
 
         {/* CTA Button */}
         <TouchableOpacity
-          style={[styles.ctaButton, !destination.trim() && styles.ctaButtonDisabled]}
+          style={[styles.ctaButton, (!destination.trim() || !effectiveSafeWord.trim()) && styles.ctaButtonDisabled]}
           onPress={handleFindRoutes}
-          disabled={!destination.trim()}
+          disabled={!destination.trim() || !effectiveSafeWord.trim()}
         >
           <Text style={styles.ctaButtonText}>Find Safest Routes</Text>
         </TouchableOpacity>
@@ -685,6 +754,78 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '700',
+  },
+
+  // Danger Word
+  swToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 10,
+    padding: 3,
+    gap: 3,
+    marginBottom: 12,
+  },
+  swOption: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  swOptionActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  swOptionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  swOptionTextActive: {
+    color: '#1A1A1A',
+  },
+  swOptionTextDisabled: {
+    opacity: 0.35,
+  },
+  savedWordBox: {
+    backgroundColor: colors.gray[50],
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.gray[200],
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 10,
+  },
+  savedWordLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.gray[400],
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  savedWordValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  swInput: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: '#1A1A1A',
+    marginBottom: 10,
+  },
+  swHelper: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    lineHeight: 17,
   },
 
   // Legacy styles (kept for compatibility)

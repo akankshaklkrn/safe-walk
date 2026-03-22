@@ -17,8 +17,27 @@ import {
   setDoc,
   writeBatch,
 } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth, db } from '../services/firebase';
 import type { EmergencyContact, UserProfile } from '../types';
+
+const dangerWordKey = (uid: string) => `@safewalk/dangerWord/${uid}`;
+
+async function cacheDangerWord(uid: string, word: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(dangerWordKey(uid), word);
+  } catch {
+    // cache write failure is non-fatal
+  }
+}
+
+async function readCachedDangerWord(uid: string): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(dangerWordKey(uid));
+  } catch {
+    return null;
+  }
+}
 
 interface AuthContextValue {
   authUser: User | null;
@@ -110,6 +129,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ...(contactDoc.data() as Omit<EmergencyContact, 'id'>),
       }))
     );
+
+    // Keep AsyncStorage in sync so safeWord survives cold starts
+    await cacheDangerWord(targetUid, nextProfile?.safeWord ?? '');
   };
 
   useEffect(() => {
@@ -121,6 +143,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setEmergencyContacts([]);
         setLoading(false);
         return;
+      }
+
+      // Optimistic pre-fill from local cache so UI is non-empty while Firestore loads
+      const cached = await readCachedDangerWord(user.uid);
+      if (cached) {
+        setProfile(buildProfile(user, cached));
       }
 
       await refreshProfile(user.uid);
