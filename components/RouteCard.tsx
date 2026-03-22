@@ -9,6 +9,18 @@ interface RouteCardProps {
 }
 
 export default function RouteCard({ route, isSelected, onSelect }: RouteCardProps) {
+  const metricChips = route.metrics
+    ? [
+        route.metrics.directness === 'high' ? 'More direct' : route.metrics.directness === 'low' ? 'Less direct' : 'Balanced path',
+        route.metrics.turnCount <= 3 ? 'Fewer turns' : route.metrics.turnCount >= 6 ? 'More turns' : 'Moderate turns',
+        route.metrics.activityLevel === 'high'
+          ? 'Busier route'
+          : route.metrics.areaCharacter === 'residential'
+            ? 'Quieter streets'
+            : 'Mixed activity',
+      ]
+    : [];
+
   return (
     <TouchableOpacity
       style={[styles.card, isSelected && styles.cardSelected]}
@@ -40,6 +52,16 @@ export default function RouteCard({ route, isSelected, onSelect }: RouteCardProp
         <Text style={styles.observationLabel}>Route Observation</Text>
         <Text style={styles.observationText}>{route.observation}</Text>
       </View>
+
+      {metricChips.length > 0 ? (
+        <View style={styles.chipsRow}>
+          {metricChips.map((chip) => (
+            <View key={`${route.id}-${chip}`} style={styles.chip}>
+              <Text style={styles.chipText}>{chip}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -131,5 +153,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     lineHeight: 20,
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  chip: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: '#F3F0FF',
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
   },
 });

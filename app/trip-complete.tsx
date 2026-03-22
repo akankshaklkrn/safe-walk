@@ -133,6 +133,17 @@ export default function TripCompleteScreen() {
             {isEscalated ? 'Alert was raised' : 'You arrived safely!'}
           </Text>
           <Text style={styles.heroDestination}>{destination}</Text>
+          {!feedback && !loadingFeedback && (
+            <TouchableOpacity style={styles.feedbackButtonTop} onPress={() => void handleGetFeedback()}>
+              <Text style={styles.feedbackButtonText}>✨ Generate Trip Feedback</Text>
+            </TouchableOpacity>
+          )}
+          {loadingFeedback && (
+            <View style={styles.feedbackLoadingTop}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={styles.feedbackLoadingText}>Generating your trip summary…</Text>
+            </View>
+          )}
           {arrivedAt ? (
             <Text style={[styles.heroTime, isEscalated && styles.heroTimeAlert]}>
               {isEscalated ? 'Trip ended at' : 'Arrived at'} {arrivedAt}
@@ -189,26 +200,12 @@ export default function TripCompleteScreen() {
         </View>
 
         {/* ── AI Feedback ───────────────────────────────────────────── */}
-        <View style={styles.feedbackSection}>
-          <Text style={styles.feedbackHeading}>Trip Feedback</Text>
-          <Text style={styles.feedbackSub}>
-            Get a summary of your trip companion conversation from ElevenLabs.
-          </Text>
-
-          {!feedback && !loadingFeedback && (
-            <TouchableOpacity style={styles.feedbackButton} onPress={() => void handleGetFeedback()}>
-              <Text style={styles.feedbackButtonText}>✨ Generate Trip Feedback</Text>
-            </TouchableOpacity>
-          )}
-
-          {loadingFeedback && (
-            <View style={styles.feedbackLoading}>
-              <ActivityIndicator color={colors.primary} />
-              <Text style={styles.feedbackLoadingText}>Generating your trip summary…</Text>
-            </View>
-          )}
-
-          {feedback && (
+        {feedback && (
+          <View style={styles.feedbackSection}>
+            <Text style={styles.feedbackHeading}>Trip Feedback</Text>
+            <Text style={styles.feedbackSub}>
+              Summary from your SafeWalk companion conversation.
+            </Text>
             <View style={styles.feedbackCard}>
               <Text style={styles.feedbackCardTitle}>🤖 Your Trip Summary</Text>
               <Text style={styles.feedbackCardText}>{feedback}</Text>
@@ -219,8 +216,8 @@ export default function TripCompleteScreen() {
                 <Text style={styles.feedbackRetryText}>Regenerate</Text>
               </TouchableOpacity>
             </View>
-          )}
-        </View>
+          </View>
+        )}
 
         {/* ── Actions ───────────────────────────────────────────────── */}
         <TouchableOpacity
@@ -288,14 +285,22 @@ const styles = StyleSheet.create({
   feedbackHeading: { fontSize: 17, fontWeight: '700', color: colors.text },
   feedbackSub:     { fontSize: 13, color: colors.textLight, lineHeight: 18 },
 
-  feedbackButton: {
+  feedbackButtonTop: {
     backgroundColor: colors.primary,
     borderRadius: 12,
+    marginTop: 8,
+    paddingHorizontal: 18,
     paddingVertical: 14,
     alignItems: 'center',
   },
   feedbackButtonText: { color: colors.white, fontSize: 15, fontWeight: '700' },
 
+  feedbackLoadingTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 8,
+  },
   feedbackLoading: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   feedbackLoadingText: { fontSize: 14, color: colors.textLight },
 

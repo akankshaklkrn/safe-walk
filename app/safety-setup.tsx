@@ -24,7 +24,7 @@ export default function SafetySetupScreen() {
     mode: 'walking' | 'car';
     safeWord: string;
   }>();
-  const { authUser, emergencyContacts: savedContacts, loading: authLoading, saveEmergencyContacts } =
+  const { authUser, authError, emergencyContacts: savedContacts, loading: authLoading, saveEmergencyContacts } =
     useAuthContext();
   const { updateTripSetup } = useTripContext();
 
@@ -188,6 +188,8 @@ export default function SafetySetupScreen() {
         pathname: '/route-selection',
         params: { destination, mode, safeWord },
       });
+    } catch {
+      Alert.alert('Could not save contacts', authError || 'Please check the contact details and try again.');
     } finally {
       setSavingContacts(false);
     }
@@ -340,6 +342,8 @@ export default function SafetySetupScreen() {
               </TouchableOpacity>
             </View>
           ) : null}
+
+          {authError ? <Text style={styles.fieldError}>{authError}</Text> : null}
         </View>
 
         <TouchableOpacity

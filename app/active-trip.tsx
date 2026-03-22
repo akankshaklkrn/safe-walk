@@ -16,8 +16,6 @@ import { colors } from '../constants/colors';
 import type { SafetyStatus, CommuteMode } from '../types';
 import MapView from '../components/MapView';
 import SafetyStatusIndicator from '../components/SafetyStatusIndicator';
-import SOSButton from '../components/SOSButton';
-import TripInfoBar from '../components/TripInfoBar';
 import AICompanionPanel from '../components/AICompanionPanel';
 import EscalationAlert from '../components/EscalationAlert';
 import { getMockAIMessages, type AIMessage } from '../data/mockMessages';
@@ -31,7 +29,6 @@ import {
   mapBackendStatus,
   formatEta,
   formatDistance,
-  deviationLevelLabel,
   type DeviationLevel,
   type TripSummaryRaw,
 } from '../services/api';
@@ -141,17 +138,8 @@ export default function ActiveTripScreen() {
   };
 
   const sendEmailAlert = async (alertType: string, message: string) => {
-    console.log('[sendEmailAlert] Starting email alert', { 
-      alertType, 
-      message, 
-      trustedContactEmail,
-      emailAlertBaseUrl 
-    });
-
     if (!trustedContactEmail) {
-      const errorMsg = 'No trusted contact email configured';
-      console.error('[sendEmailAlert]', errorMsg);
-      throw new Error(errorMsg);
+      throw new Error('No trusted contact email configured');
     }
 
     const activeLocation = currentLocation ?? fallbackLoc.current;
@@ -169,16 +157,11 @@ export default function ActiveTripScreen() {
       trustedContactEmail,
     };
 
-    console.log('[sendEmailAlert] Sending to:', `${emailAlertBaseUrl}/alerts/sos`);
-    console.log('[sendEmailAlert] Payload:', JSON.stringify(payload, null, 2));
-
     const response = await fetch(`${emailAlertBaseUrl}/alerts/sos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-
-    console.log('[sendEmailAlert] Response status:', response.status);
 
     const result = (await response.json()) as {
       ok?: boolean;
@@ -187,15 +170,9 @@ export default function ActiveTripScreen() {
       error?: string;
     };
 
-    console.log('[sendEmailAlert] Response body:', result);
-
     if (!response.ok || !result.ok) {
-      const errorMsg = result.error || 'Failed to send email alert.';
-      console.error('[sendEmailAlert] Failed:', errorMsg);
-      throw new Error(errorMsg);
+      throw new Error(result.error || 'Failed to send email alert.');
     }
-
-    console.log('[sendEmailAlert] Success! Alert ID:', result.alertId);
 
     appendMessage({
       id: `${Date.now()}-email-sent`,
@@ -219,7 +196,6 @@ export default function ActiveTripScreen() {
   const conversation = useTripConversation({
     tokenFetchUrl,
     onConnect: ({ conversationId }: { conversationId: string }) => {
-      console.log('[ElevenLabs] Connected with conversation ID:', conversationId);
       setElevenLabsConversationId(conversationId);
       setVoiceStatus(`Companion connected: ${conversationId}`);
     },
@@ -239,7 +215,6 @@ export default function ActiveTripScreen() {
       message: string;
       source: 'user' | 'ai';
     }) => {
-      console.log('[ElevenLabs] Message received:', { source, message: message.substring(0, 50) });
       appendMessage({
         id: `${Date.now()}-${source}`,
         text: message,
@@ -381,11 +356,8 @@ export default function ActiveTripScreen() {
             : `${Math.round(result.distanceFromRouteMeters)}m off route`;
           
           const updateMessage = `Trip update: ${etaText} remaining to ${destinationName}. Progress: ${progressText} along route. Currently ${routeStatus}.`;
-          console.log('[ElevenLabs] Sending contextual update:', updateMessage);
           conversation.sendContextualUpdate(updateMessage);
           lastContextUpdateRef.current = now;
-        } else if (conversation.status !== 'connected') {
-          console.log('[ElevenLabs] Skipping update - conversation status:', conversation.status);
         }
 
         if (result.rejoinedRoute) {
@@ -418,8 +390,6 @@ export default function ActiveTripScreen() {
     }
 
     hasStartedSessionRef.current = true;
-    console.log('[ElevenLabs] Starting session with agent:', agentId);
-    console.log('[ElevenLabs] Dynamic variables:', { destination: destinationName, route_name: selectedRouteName, safe_word_enabled: Boolean(configuredSafeWord) });
     conversation
       .startSession({
         agentId,
@@ -433,7 +403,6 @@ export default function ActiveTripScreen() {
       })
       .then(() => {
         const initialMessage = `SafeWalk trip started. Destination: ${destinationName}. Route: ${selectedRouteName}. Keep the user company for the full trip. When the user asks about ETA or time remaining, you will receive regular trip updates with this information.`;
-        console.log('[ElevenLabs] Session started, sending initial context:', initialMessage);
         conversation.sendContextualUpdate(initialMessage);
       })
       .catch((error: unknown) => {
@@ -506,9 +475,6 @@ export default function ActiveTripScreen() {
   const handleSOS = () => {
     void handleEscalation('Manual SOS triggered');
 
-    // Fire backend + email calls in the background after UI has already responded
-    const activeLocation = currentLocation ?? fallbackLoc.current;
-
     if (tripId) {
       submitCheckResponse(tripId, 'sos').catch(() => undefined);
     }
@@ -530,7 +496,6 @@ export default function ActiveTripScreen() {
             }
             const durationSeconds = Math.floor((Date.now() - tripStartTimeRef.current) / 1000);
             const durationMinutes = Math.floor(durationSeconds / 60);
-            console.log('[Trip End] ElevenLabs conversation ID:', elevenLabsConversationId);
             router.replace({
               pathname: '/trip-complete',
               params: {

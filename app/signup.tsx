@@ -33,6 +33,8 @@ export default function SignupScreen() {
     try {
       setSubmitting(true);
       await signUpWithEmail({ name, email, password });
+    } catch {
+      // AuthContext sets the user-facing error state.
     } finally {
       setSubmitting(false);
     }
@@ -67,6 +69,7 @@ export default function SignupScreen() {
             value={name}
             onChangeText={setName}
             placeholder="Your name"
+            autoCorrect={false}
           />
 
           <Text style={styles.label}>Email</Text>
@@ -77,6 +80,7 @@ export default function SignupScreen() {
             placeholder="you@example.com"
             keyboardType="email-address"
             autoCapitalize="none"
+            autoCorrect={false}
           />
 
           <Text style={styles.label}>Password</Text>
@@ -86,6 +90,7 @@ export default function SignupScreen() {
             onChangeText={setPassword}
             placeholder="At least 6 characters"
             secureTextEntry
+            autoCorrect={false}
           />
 
           {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
@@ -113,7 +118,7 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF7ED' },
   content: { flexGrow: 1, paddingHorizontal: 24, gap: 24, paddingTop: 56, paddingBottom: 48 },
-  brandBlock: { gap: 10 },
+  brandBlock: { gap: 10, alignItems: 'center' },
   logoImage: {
     width: 132,
     height: 132,

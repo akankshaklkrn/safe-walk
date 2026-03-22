@@ -32,6 +32,8 @@ export default function LoginScreen() {
     try {
       setSubmitting(true);
       await loginWithEmail({ email, password });
+    } catch {
+      // AuthContext sets the user-facing error state.
     } finally {
       setSubmitting(false);
     }
@@ -68,6 +70,7 @@ export default function LoginScreen() {
             placeholder="you@example.com"
             keyboardType="email-address"
             autoCapitalize="none"
+            autoCorrect={false}
           />
 
           <Text style={styles.label}>Password</Text>
@@ -77,6 +80,7 @@ export default function LoginScreen() {
             onChangeText={setPassword}
             placeholder="Password"
             secureTextEntry
+            autoCorrect={false}
           />
 
           {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
