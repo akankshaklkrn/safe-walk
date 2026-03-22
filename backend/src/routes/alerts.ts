@@ -6,8 +6,11 @@ const router = Router();
 router.post('/sos', async (req: Request, res: Response) => {
   const {
     userId,
+    userName,
     tripId,
     location,
+    originLabel,
+    destinationLabel,
     timestamp,
     alertType,
     message,
@@ -15,8 +18,11 @@ router.post('/sos', async (req: Request, res: Response) => {
     trustedContactEmail,
   } = req.body as {
     userId?: string;
+    userName?: string;
     tripId?: string;
     location?: { lat?: number; lng?: number };
+    originLabel?: string;
+    destinationLabel?: string;
     timestamp?: string;
     alertType?: string;
     message?: string;
@@ -42,9 +48,12 @@ router.post('/sos', async (req: Request, res: Response) => {
     });
     const result = await sendSosEmail({
       userId: userId ?? 'unknown-user',
+      userName: userName ?? 'SafeWalk user',
       tripId: tripId ?? 'unknown-trip',
       trustedContactEmail,
       location: { lat: location.lat, lng: location.lng },
+      originLabel: originLabel ?? 'Trip origin unavailable',
+      destinationLabel: destinationLabel ?? 'Destination unavailable',
       timestamp: timestamp ?? new Date().toISOString(),
       alertType: alertType ?? 'sos',
       message: message ?? 'Emergency alert triggered from SafeWalk.',

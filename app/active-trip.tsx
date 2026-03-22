@@ -22,6 +22,7 @@ import AICompanionPanel from '../components/AICompanionPanel';
 import EscalationAlert from '../components/EscalationAlert';
 import { getMockAIMessages, type AIMessage } from '../data/mockMessages';
 import { useTripConversation } from '../hooks/useTripConversation';
+import { useAuthContext } from '../context/AuthContext';
 import { containsSafeWord } from '../services/p3';
 import {
   updateLocation,
@@ -39,6 +40,7 @@ const POLL_INTERVAL_MS = 15_000;
 
 export default function ActiveTripScreen() {
   const router = useRouter();
+  const { profile } = useAuthContext();
   const {
     tripId,
     destination,
@@ -75,6 +77,7 @@ export default function ActiveTripScreen() {
   const [deviationLevel, setDeviationLevel] = useState<DeviationLevel>('none');
   const [rejoinedBanner, setRejoinedBanner] = useState(false);
 
+  const [showEscalationPrompt, setShowEscalationPrompt] = useState(false);
   const [showSOSConfirmation, setShowSOSConfirmation] = useState(false);
   const [pendingEscalationReason, setPendingEscalationReason] = useState('');
   const [draftMessage, setDraftMessage] = useState('');
@@ -115,6 +118,11 @@ export default function ActiveTripScreen() {
   const configuredSafeWord = typeof safeWord === 'string' ? safeWord : '';
   const destinationName = destination || 'your destination';
   const selectedRouteName = routeName || 'your selected route';
+  const userName = profile?.name?.trim() || 'SafeWalk user';
+  const originLabel =
+    startLat && startLng
+      ? `Starting point near ${parseFloat(startLat).toFixed(5)}, ${parseFloat(startLng).toFixed(5)}`
+      : 'Trip origin unavailable';
   const agentId = process.env.EXPO_PUBLIC_ELEVENLABS_AGENT_ID;
   const useServerToken = process.env.EXPO_PUBLIC_ELEVENLABS_USE_SERVER_TOKEN === 'true';
   const apiBaseUrl = Constants.expoConfig?.hostUri
@@ -149,8 +157,11 @@ export default function ActiveTripScreen() {
     const activeLocation = currentLocation ?? fallbackLoc.current;
     const payload = {
       userId: `trip-${tripId || 'unknown'}`,
+      userName,
       tripId: tripId || 'unknown-trip',
       location: activeLocation,
+      originLabel,
+      destinationLabel: destinationName,
       timestamp: new Date().toISOString(),
       alertType,
       message,
@@ -202,6 +213,7 @@ export default function ActiveTripScreen() {
     countdownActiveRef.current = true;
     setPendingEscalationReason(reason);
     setSafetyStatus('uncertain');
+    setShowEscalationPrompt(true);
   };
 
   const conversation = useTripConversation({
@@ -261,8 +273,29 @@ export default function ActiveTripScreen() {
     });
   };
 
+  const navigateEscalatedComplete = () => {
+    const durationSeconds = Math.floor((Date.now() - tripStartTimeRef.current) / 1000);
+    const durationMinutes = Math.floor(durationSeconds / 60);
+
+    router.replace({
+      pathname: '/trip-complete',
+      params: {
+        tripId: tripId ?? 'unknown',
+        completedAt: new Date().toISOString(),
+        actualDurationSeconds: String(durationSeconds),
+        actualDurationMinutes: String(durationMinutes),
+        finalDistanceFromRouteMeters: '0',
+        finalDeviationLevel: deviationLevel ?? 'none',
+        destination: destination ?? '',
+        routeName: routeName ?? '',
+        wasEscalated: 'true',
+      },
+    });
+  };
+
   const handleEscalation = async (reason: string, alertType = 'critical') => {
     countdownActiveRef.current = false;
+    setShowEscalationPrompt(false);
     setEscalated(true);
     setSafetyStatus('risk');
 
@@ -287,7 +320,7 @@ export default function ActiveTripScreen() {
         sender: 'ai',
       });
     }
-
+    setShowSOSConfirmation(true);
   };
 
   useEffect(() => {
@@ -445,6 +478,7 @@ export default function ActiveTripScreen() {
 
   const handleConfirmSafe = async () => {
     countdownActiveRef.current = false;
+    setShowEscalationPrompt(false);
     setSafetyStatus('safe');
     setPendingEscalationReason('');
 
@@ -471,7 +505,6 @@ export default function ActiveTripScreen() {
 
   const handleSOS = () => {
     void handleEscalation('Manual SOS triggered');
-    setShowSOSConfirmation(true);
 
     // Fire backend + email calls in the background after UI has already responded
     const activeLocation = currentLocation ?? fallbackLoc.current;
@@ -700,10 +733,15 @@ export default function ActiveTripScreen() {
       )}
 
       <EscalationAlert
+        visible={showEscalationPrompt}
+        onConfirmSafe={() => void handleConfirmSafe()}
+        onEmergencyContact={handleEmergencyContact}
+      />
+      <EscalationAlert
         visible={showSOSConfirmation}
         escalatedMode
-        onConfirmSafe={() => setShowSOSConfirmation(false)}
-        onEmergencyContact={() => setShowSOSConfirmation(false)}
+        onConfirmSafe={navigateEscalatedComplete}
+        onEmergencyContact={navigateEscalatedComplete}
       />
     </SafeAreaView>
   );
