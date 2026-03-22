@@ -31,14 +31,14 @@ The product is built around one idea: safety should not begin only after the use
   </tr>
   <tr>
     <td align="center">
-      <img src="Screenshots/IMG_9848.PNG" alt="Escalation Modal" width="220" />
-      <br />
-      <strong>Escalation Flow</strong>
-    </td>
-    <td align="center">
       <img src="Screenshots/IMG_9844.PNG" alt="Active Trip Screen" width="220" />
       <br />
       <strong>Active Trip</strong>
+    </td>
+    <td align="center">
+      <img src="Screenshots/IMG_9848.PNG" alt="Escalation Modal" width="220" />
+      <br />
+      <strong>Escalation Flow</strong>
     </td>
     <td align="center">
       <img src="Screenshots/IMG_9838.PNG" alt="Feedback Screen" width="220" />
