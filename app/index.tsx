@@ -14,17 +14,20 @@ import {
 import { useRouter } from 'expo-router';
 import { colors } from '../constants/colors';
 import { useAuthContext } from '../context/AuthContext';
-import { checkHealth, getPlaceSuggestions, type PlaceSuggestion } from '../services/api';
+import { getPlaceSuggestions, type PlaceSuggestion } from '../services/api';
 import { CommuteMode } from '../types';
+
+// Mock recent destinations
+const RECENT_DESTINATIONS = [
+  { id: '1', name: 'Home', address: '123 Maple Street, Sunset Valley' },
+  { id: '2', name: 'Downtown Office', address: 'Tech Tower 4, Main Business District' },
+];
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { authUser, loading, logout, profile, saveProfile } = useAuthContext();
+  const { authUser, loading, profile, saveProfile } = useAuthContext();
   const [destination, setDestination] = useState('');
   const [mode, setMode] = useState<CommuteMode>('walking');
-  const [safeWord, setSafeWord] = useState('');
-  const [safeWordMode, setSafeWordMode] = useState<'stored' | 'new'>('new');
-  const [backendStatus, setBackendStatus] = useState<'checking' | 'ok' | 'offline'>('checking');
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -35,19 +38,6 @@ export default function HomeScreen() {
     }
   }, [authUser, loading, router]);
 
-  useEffect(() => {
-    checkHealth().then((ok) => setBackendStatus(ok ? 'ok' : 'offline'));
-  }, []);
-
-  useEffect(() => {
-    if (profile?.safeWord) {
-      setSafeWord(profile.safeWord);
-      setSafeWordMode('stored');
-    } else {
-      setSafeWord('');
-      setSafeWordMode('new');
-    }
-  }, [profile?.safeWord]);
 
   const handleDestinationChange = (text: string) => {
     setDestination(text);
@@ -76,17 +66,19 @@ export default function HomeScreen() {
       return;
     }
 
-    const selectedSafeWord = safeWordMode === 'stored' ? profile?.safeWord ?? '' : safeWord.trim();
-
-    if (safeWordMode === 'new' && selectedSafeWord) {
-      void saveProfile({ safeWord: selectedSafeWord });
-    }
-
     setShowDropdown(false);
     router.push({
       pathname: '/safety-setup',
-      params: { destination, mode, safeWord: selectedSafeWord },
+      params: { destination, mode, safeWord: profile?.safeWord ?? '' },
     });
+  };
+
+  const handleClearRecent = () => {
+    // TODO: Implement clear recent destinations
+  };
+
+  const handleSelectRecent = (dest: typeof RECENT_DESTINATIONS[0]) => {
+    setDestination(dest.name + ' — ' + dest.address);
   };
 
   if (!authUser) {
@@ -94,50 +86,53 @@ export default function HomeScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <TouchableOpacity style={styles.logoutButton} onPress={() => void logout()}>
-          <Text style={styles.logoutButtonText}>Log Out</Text>
-        </TouchableOpacity>
-
-        <View style={styles.header}>
+    <View style={styles.container}>
+      {/* Top App Bar */}
+      <View style={styles.appBar}>
+        <View style={styles.appBarLeft}>
           <Image
             source={require('../assets/safewalk.png')}
-            style={styles.logoImage}
+            style={styles.appBarLogo}
             resizeMode="contain"
           />
-          <Text style={styles.title}>SafeWalk</Text>
-          <Text style={styles.subtitle}>Hi, {profile?.name || authUser.displayName || 'there'}.</Text>
-          <Text style={styles.subtitleSecondary}>
-            Your AI walking companion is ready for the next trip.
-          </Text>
         </View>
+        <Text style={styles.appBarTitle}>SafeWalk</Text>
+        <View style={styles.appBarRight}>
+          <TouchableOpacity style={styles.iconButton}>
+            <Text style={styles.iconText}>🔔</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconButton}>
+            <Text style={styles.iconText}>⚙️</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
-        <TouchableOpacity
-          style={styles.statusRow}
-          onPress={() => {
-            setBackendStatus('checking');
-            checkHealth().then((ok) => setBackendStatus(ok ? 'ok' : 'offline'));
-          }}
-          activeOpacity={0.7}
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.statusDot, statusDotStyle(backendStatus)]} />
-          <Text style={styles.statusText}>
-            {backendStatus === 'checking' && 'Connecting to backend…'}
-            {backendStatus === 'ok' && 'Backend connected  ·  tap to recheck'}
-            {backendStatus === 'offline' && 'Backend offline  ·  tap to retry'}
-          </Text>
-        </TouchableOpacity>
+          {/* Status Pill */}
+          <View style={styles.statusPill}>
+            <View style={styles.statusDotOnline} />
+            <Text style={styles.statusPillText}>AI COMPANION ONLINE</Text>
+          </View>
 
-        <View style={styles.modeSection}>
-          <Text style={styles.label}>How are you traveling?</Text>
+          {/* Hero Section */}
+          <View style={styles.hero}>
+            <Text style={styles.heroTitle}>Where to, {profile?.name || authUser.displayName || 'Hemang'}?</Text>
+            <Text style={styles.heroSubtitle}>
+              Your AI companion will stay with you every step of the trip to ensure you arrive safely.
+            </Text>
+          </View>
+
+        {/* Commute Mode */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>COMMUTE MODE</Text>
           <View style={styles.modeButtons}>
             <TouchableOpacity
               style={[styles.modeButton, mode === 'walking' && styles.modeButtonActive]}
@@ -161,8 +156,9 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View style={styles.inputSection}>
-          <Text style={styles.label}>Where are you going?</Text>
+        {/* Destination */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>DESTINATION</Text>
           <TextInput
             style={[styles.input, showDropdown && styles.inputOpen]}
             placeholder="Enter destination"
@@ -193,72 +189,68 @@ export default function HomeScreen() {
             ))}
         </View>
 
-        <View style={styles.inputSection}>
-          <Text style={styles.label}>Safe word</Text>
-          {profile?.safeWord ? (
-            <View style={styles.safeWordOptions}>
-              <TouchableOpacity
-                style={[styles.safeWordChoice, safeWordMode === 'stored' && styles.safeWordChoiceActive]}
-                onPress={() => {
-                  setSafeWordMode('stored');
-                  setSafeWord(profile.safeWord || '');
-                }}
-              >
-                <Text style={[styles.safeWordChoiceText, safeWordMode === 'stored' && styles.safeWordChoiceTextActive]}>
-                  Use saved word
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.safeWordChoice, safeWordMode === 'new' && styles.safeWordChoiceActive]}
-                onPress={() => setSafeWordMode('new')}
-              >
-                <Text style={[styles.safeWordChoiceText, safeWordMode === 'new' && styles.safeWordChoiceTextActive]}>
-                  Create new
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-
-          {safeWordMode === 'stored' && profile?.safeWord ? (
-            <View style={styles.savedSafeWordCard}>
-              <Text style={styles.savedSafeWordLabel}>Saved safe word</Text>
-              <Text style={styles.savedSafeWordValue}>{profile.safeWord}</Text>
-            </View>
-          ) : null}
-
-          {(safeWordMode === 'new' || !profile?.safeWord) && (
-            <TextInput
-              style={styles.input}
-              placeholder="Optional phrase only you would know"
-              placeholderTextColor={colors.textLight}
-              value={safeWord}
-              onChangeText={setSafeWord}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          )}
-
-          <Text style={styles.helperText}>
-            If this word comes up during the conversation, SafeWalk will escalate immediately.
-          </Text>
+        {/* Recent Destinations */}
+        <View style={styles.section}>
+          <View style={styles.recentHeader}>
+            <Text style={styles.recentLabel}>Recent</Text>
+            <TouchableOpacity onPress={handleClearRecent}>
+              <Text style={styles.clearText}>Clear</Text>
+            </TouchableOpacity>
+          </View>
+          {RECENT_DESTINATIONS.map((dest) => (
+            <TouchableOpacity
+              key={dest.id}
+              style={styles.recentCard}
+              onPress={() => handleSelectRecent(dest)}
+            >
+              <View style={styles.recentIcon}>
+                <Text style={styles.recentIconText}>📍</Text>
+              </View>
+              <View style={styles.recentInfo}>
+                <Text style={styles.recentName}>{dest.name}</Text>
+                <Text style={styles.recentAddress}>{dest.address}</Text>
+              </View>
+              <Text style={styles.recentChevron}>›</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
+        {/* CTA Button */}
         <TouchableOpacity
-          style={[styles.button, !destination.trim() && styles.buttonDisabled]}
+          style={[styles.ctaButton, !destination.trim() && styles.ctaButtonDisabled]}
           onPress={handleFindRoutes}
           disabled={!destination.trim()}
         >
-          <Text style={styles.buttonText}>Find Routes</Text>
+          <Text style={styles.ctaButtonText}>Find Safest Routes</Text>
         </TouchableOpacity>
+
+        {/* Helper Text */}
+        <Text style={styles.ctaHelper}>AI ACTIVE MONITORING DURING TRANSIT</Text>
       </ScrollView>
     </KeyboardAvoidingView>
-  );
-}
 
-function statusDotStyle(status: 'checking' | 'ok' | 'offline') {
-  if (status === 'ok') return { backgroundColor: colors.green };
-  if (status === 'offline') return { backgroundColor: colors.red };
-  return { backgroundColor: colors.yellow };
+    {/* Bottom Tab Bar */}
+    <View style={styles.tabBar}>
+      <TouchableOpacity style={styles.tab}>
+        <Text style={styles.tabIcon}>🏠</Text>
+        <Text style={[styles.tabLabel, styles.tabLabelActive]}>Home</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.tab}>
+        <View style={styles.tabIconContainer}>
+          <Text style={styles.tabIcon}>🛡️</Text>
+          <View style={styles.notificationBadge}>
+            <Text style={styles.notificationText}>9</Text>
+          </View>
+        </View>
+        <Text style={styles.tabLabel}>Safety</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.tab}>
+        <Text style={styles.tabIcon}>👤</Text>
+        <Text style={styles.tabLabel}>Profile</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -266,12 +258,118 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  flex: {
+    flex: 1,
+  },
+  appBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 54,
+    paddingBottom: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8E8E8',
+  },
+  appBarLeft: {
+    width: 80,
+    alignItems: 'flex-start',
+  },
+  appBarLogo: {
+    width: 36,
+    height: 36,
+    backgroundColor: '#5b5299',
+    borderRadius: 8,
+    padding: 4,
+  },
+  appBarTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#5b5299',
+    letterSpacing: -0.5,
+  },
+  appBarRight: {
+    flexDirection: 'row',
+    gap: 12,
+    width: 80,
+    justifyContent: 'flex-end',
+  },
+  iconButton: {
+    padding: 6,
+    borderRadius: 8,
+  },
+  iconText: {
+    fontSize: 22,
+  },
   content: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 44,
-    paddingBottom: 36,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 32,
   },
+
+  // Status Pill
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#F0F9F4',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#D1EAD9',
+    gap: 8,
+    marginBottom: 24,
+  },
+  statusDotOnline: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#34A853',
+  },
+  statusPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#1E7E34',
+    letterSpacing: 1.2,
+  },
+
+  // Hero Section
+  hero: {
+    marginBottom: 32,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  heroTitle: {
+    fontSize: 30,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    textAlign: 'center',
+    marginBottom: 12,
+    letterSpacing: -0.5,
+    lineHeight: 36,
+  },
+  heroSubtitle: {
+    fontSize: 15,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+
+  // Section
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#6B7280',
+    letterSpacing: 1.5,
+    marginBottom: 12,
+  },
+
   header: {
     marginBottom: 24,
     alignItems: 'center',
@@ -338,32 +436,40 @@ const styles = StyleSheet.create({
   },
   modeButtons: {
     flexDirection: 'row',
-    gap: 12,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
   },
   modeButton: {
     flex: 1,
-    backgroundColor: colors.white,
-    borderWidth: 2,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingVertical: 16,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 8,
     gap: 8,
   },
   modeButtonActive: {
-    borderColor: '#5b5299',
-    backgroundColor: '#F3F0FF',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
   },
   modeIcon: {
-    fontSize: 32,
+    fontSize: 20,
   },
   modeText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    color: colors.textLight,
+    color: '#6B7280',
   },
   modeTextActive: {
-    color: '#5b5299',
+    color: '#1A1A1A',
+    fontWeight: '700',
   },
   inputSection: {
     marginBottom: 24,
@@ -375,14 +481,19 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   input: {
-    backgroundColor: colors.white,
-    borderWidth: 2,
-    borderColor: colors.border,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     borderRadius: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 48,
     paddingVertical: 16,
     fontSize: 16,
-    color: colors.text,
+    color: '#1A1A1A',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
   helperText: {
     fontSize: 13,
@@ -425,6 +536,158 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 20,
   },
+
+  // Recent Destinations
+  recentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  recentLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  clearText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#5b5299',
+  },
+  recentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 10,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  recentIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  recentIconText: {
+    fontSize: 20,
+  },
+  recentInfo: {
+    flex: 1,
+  },
+  recentName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    marginBottom: 4,
+  },
+  recentAddress: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 18,
+  },
+  recentChevron: {
+    fontSize: 18,
+    color: '#9CA3AF',
+    marginLeft: 8,
+  },
+
+  // CTA Button
+  ctaButton: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 12,
+    paddingVertical: 18,
+    alignItems: 'center',
+    marginTop: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  ctaButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+    shadowOpacity: 0.05,
+    elevation: 1,
+  },
+  ctaButtonText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  ctaHelper: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    textAlign: 'center',
+    letterSpacing: 1.2,
+    marginTop: 12,
+  },
+
+  // Bottom Tab Bar
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    paddingBottom: 24,
+    paddingTop: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    gap: 6,
+  },
+  tabIconContainer: {
+    position: 'relative',
+  },
+  tabIcon: {
+    fontSize: 24,
+  },
+  tabLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#9CA3AF',
+  },
+  tabLabelActive: {
+    color: '#1A1A1A',
+    fontWeight: '700',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+  },
+  notificationText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+
+  // Legacy styles (kept for compatibility)
   safeWordOptions: {
     flexDirection: 'row',
     gap: 12,

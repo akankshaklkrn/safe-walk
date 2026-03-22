@@ -44,6 +44,9 @@ export default function SafetySetupScreen() {
     relationship: '',
   });
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
+  const [checkInFrequency, setCheckInFrequency] = useState<'5min' | '15min' | 'smart'>('smart');
+  const [silentAlarmMode, setSilentAlarmMode] = useState(false);
+  const [routeDeviationAlerts, setRouteDeviationAlerts] = useState(true);
 
   useEffect(() => {
     if (!authLoading && !authUser) {
@@ -154,14 +157,6 @@ export default function SafetySetupScreen() {
     setEmergencyContacts(updatedContacts);
   };
 
-  const handleSetPrimary = (id: string) => {
-    setEmergencyContacts((prev) =>
-      prev.map((c) => ({
-        ...c,
-        isPrimary: c.id === id,
-      }))
-    );
-  };
 
   const handleContinue = async () => {
     if (emergencyContacts.length === 0) {
@@ -198,109 +193,88 @@ export default function SafetySetupScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
+      {/* Top App Bar */}
+      <View style={styles.appBar}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.appBarTitle}>Safety Setup</Text>
+        <View style={styles.appBarRight}>
+          <TouchableOpacity style={styles.iconButton}>
+            <Text style={styles.iconText}>�</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconButton}>
+            <Text style={styles.iconText}>⚙️</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Safety Setup</Text>
-          <Text style={styles.subtitle}>
-            Review location, emergency contacts, and the safe word you will use on this trip.
+        {/* Hero Section */}
+        <View style={styles.hero}>
+          <Text style={styles.heroTitle}>Your Safety Net</Text>
+          <Text style={styles.heroSubtitle}>
+            Setup who to contact and how the AI should watch over you during your journey.
           </Text>
-          {safeWord ? <Text style={styles.safeWordNotice}>Current trip safe word: {safeWord}</Text> : null}
         </View>
 
+
+        {/* Emergency Contacts Section */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionIcon}>📍</Text>
-            <Text style={styles.sectionTitle}>Current Location</Text>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderLeft}>
+              <Text style={styles.sectionIcon}>👥</Text>
+              <Text style={styles.sectionTitle}>Emergency Contacts</Text>
+            </View>
+            <Text style={styles.contactCounter}>{emergencyContacts.length} of 5 added</Text>
           </View>
 
-          {isLoadingLocation ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={styles.loadingText}>Requesting location permission...</Text>
-            </View>
-          ) : locationPermissionStatus === 'granted' && currentLocation ? (
-            <View style={styles.locationCard}>
-              <Text style={styles.locationLabel}>Your current location:</Text>
-              <Text style={styles.locationText}>
-                {currentLocation.address ||
-                  `${currentLocation.latitude.toFixed(6)}, ${currentLocation.longitude.toFixed(6)}`}
-              </Text>
-              <Text style={styles.locationCoords}>
-                {currentLocation.latitude.toFixed(6)}, {currentLocation.longitude.toFixed(6)}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.errorCard}>
-              <Text style={styles.errorText}>
-                {locationError || 'Location permission not granted'}
-              </Text>
-              <TouchableOpacity style={styles.retryButton} onPress={() => void requestLocationPermission()}>
-                <Text style={styles.retryButtonText}>Retry</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionIcon}>👥</Text>
-            <Text style={styles.sectionTitle}>Emergency Contacts</Text>
-          </View>
-
-          {emergencyContacts.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No saved contacts yet. Add one below.</Text>
-            </View>
-          ) : null}
-
-          {emergencyContacts.map((contact) => (
-            <View key={contact.id} style={styles.contactCard}>
-              <View style={styles.contactInfo}>
-                <View style={styles.contactHeader}>
-                  <Text style={styles.contactName}>{contact.name}</Text>
-                  {contact.isPrimary ? (
-                    <View style={styles.primaryBadge}>
-                      <Text style={styles.primaryBadgeText}>Primary</Text>
-                    </View>
-                  ) : null}
-                </View>
-                <Text style={styles.contactPhone}>{contact.phoneNumber}</Text>
-                <Text style={styles.contactEmail}>{contact.email}</Text>
-                {contact.relationship ? (
-                  <Text style={styles.contactRelationship}>{contact.relationship}</Text>
-                ) : null}
+          <View style={styles.contactsContainer}>
+            {emergencyContacts.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>No saved contacts yet. Add one below.</Text>
               </View>
-              <View style={styles.contactActions}>
-                {!contact.isPrimary ? (
-                  <TouchableOpacity
-                    style={styles.setPrimaryButton}
-                    onPress={() => handleSetPrimary(contact.id)}
-                  >
-                    <Text style={styles.setPrimaryButtonText}>Set Primary</Text>
-                  </TouchableOpacity>
-                ) : null}
+            ) : null}
+
+            {emergencyContacts.map((contact) => (
+              <View key={contact.id} style={styles.contactRow}>
+                <View style={styles.contactAvatar}>
+                  <Text style={styles.contactAvatarText}>
+                    {contact.name.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.contactRowInfo}>
+                  <View style={styles.contactRowHeader}>
+                    <Text style={styles.contactRowName}>{contact.name}</Text>
+                    {contact.isPrimary ? (
+                      <View style={styles.primaryBadge}>
+                        <Text style={styles.primaryBadgeText}>Primary</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={styles.contactRowPhone}>{contact.phoneNumber}</Text>
+                </View>
                 <TouchableOpacity
-                  style={styles.removeButton}
+                  style={styles.deleteIcon}
                   onPress={() => handleRemoveContact(contact.id)}
                 >
-                  <Text style={styles.removeButtonText}>Remove</Text>
+                  <Text style={styles.deleteIconText}>×</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          ))}
+            ))}
 
-          <TouchableOpacity
-            style={styles.addContactButton}
-            onPress={() => setShowAddContact((prev) => !prev)}
-          >
-            <Text style={styles.addContactButtonText}>
-              {showAddContact ? 'Cancel' : 'Add Emergency Contact'}
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.addContactButton}
+              onPress={() => setShowAddContact((prev) => !prev)}
+            >
+              <Text style={styles.addContactButtonText}>
+                {showAddContact ? 'Cancel' : '+ Add New Contact'}
+              </Text>
+            </TouchableOpacity>
 
-          {showAddContact ? (
-            <View style={styles.addContactForm}>
+            {showAddContact ? (
+              <View style={styles.addContactForm}>
               <TextInput
                 style={styles.input}
                 placeholder="Name"
@@ -335,13 +309,102 @@ export default function SafetySetupScreen() {
                 onChangeText={(value) => setNewContact((prev) => ({ ...prev, relationship: value }))}
               />
 
-              <TouchableOpacity style={styles.saveContactButton} onPress={handleAddContact}>
-                <Text style={styles.saveContactButtonText}>Save Contact</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
+                <TouchableOpacity style={styles.saveContactButton} onPress={handleAddContact}>
+                  <Text style={styles.saveContactButtonText}>Save Contact</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+          </View>
         </View>
 
+        {/* Check-in Frequency Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderLeft}>
+              <Text style={styles.sectionIcon}>⏱️</Text>
+              <Text style={styles.sectionTitle}>Check-in Frequency</Text>
+            </View>
+          </View>
+
+          <View style={styles.frequencyOptions}>
+            <TouchableOpacity
+              style={[styles.frequencyOption, checkInFrequency === '5min' && styles.frequencyOptionActive]}
+              onPress={() => setCheckInFrequency('5min')}
+            >
+              <Text style={[styles.frequencyText, checkInFrequency === '5min' && styles.frequencyTextActive]}>
+                5 Min
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.frequencyOption, checkInFrequency === '15min' && styles.frequencyOptionActive]}
+              onPress={() => setCheckInFrequency('15min')}
+            >
+              <Text style={[styles.frequencyText, checkInFrequency === '15min' && styles.frequencyTextActive]}>
+                15 Min
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.frequencyOption, checkInFrequency === 'smart' && styles.frequencyOptionActive]}
+              onPress={() => setCheckInFrequency('smart')}
+            >
+              <Text style={[styles.frequencyText, checkInFrequency === 'smart' && styles.frequencyTextActive]}>
+                Smart
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.frequencyHelper}>
+            Smart mode adjusts frequency based on route safety data and your movement patterns.
+          </Text>
+        </View>
+
+        {/* Safety Preferences Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderLeft}>
+              <Text style={styles.sectionIcon}>🛡️</Text>
+              <Text style={styles.sectionTitle}>Safety Preferences</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.preferenceCard}
+            onPress={() => setSilentAlarmMode((prev) => !prev)}
+          >
+            <View style={styles.preferenceIcon}>
+              <Text style={styles.preferenceIconText}>🛡️</Text>
+            </View>
+            <View style={styles.preferenceInfo}>
+              <Text style={styles.preferenceTitle}>Silent Alarm Mode</Text>
+              <Text style={styles.preferenceDescription}>
+                Hold volume buttons for 3s to notify contacts without alerting others.
+              </Text>
+            </View>
+            <View style={[styles.toggle, silentAlarmMode && styles.toggleActive]}>
+              <View style={[styles.toggleThumb, silentAlarmMode && styles.toggleThumbActive]} />
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.preferenceCard}
+            onPress={() => setRouteDeviationAlerts((prev) => !prev)}
+          >
+            <View style={styles.preferenceIcon}>
+              <Text style={styles.preferenceIconText}>⚠️</Text>
+            </View>
+            <View style={styles.preferenceInfo}>
+              <Text style={styles.preferenceTitle}>Route Deviation Alerts</Text>
+              <Text style={styles.preferenceDescription}>
+                Notify primary contact if I stray more than 200m from planned route.
+              </Text>
+            </View>
+            <View style={[styles.toggle, routeDeviationAlerts && styles.toggleActive]}>
+              <View style={[styles.toggleThumb, routeDeviationAlerts && styles.toggleThumbActive]} />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Bottom CTA */}
         <TouchableOpacity
           style={[styles.continueButton, savingContacts && styles.continueButtonDisabled]}
           onPress={() => void handleContinue()}
@@ -350,11 +413,11 @@ export default function SafetySetupScreen() {
           {savingContacts ? (
             <ActivityIndicator color={colors.white} />
           ) : (
-            <Text style={styles.continueButtonText}>Continue to Routes</Text>
+            <Text style={styles.continueButtonText}>Save & Continue</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -363,10 +426,70 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  content: {
-    padding: 24,
-    paddingBottom: 48,
+
+  // App Bar
+  appBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 54,
+    paddingBottom: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8E8E8',
   },
+  backButton: {
+    width: 80,
+    alignItems: 'flex-start',
+  },
+  backIcon: {
+    fontSize: 24,
+    color: '#1A1A1A',
+  },
+  appBarTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A1A1A',
+  },
+  appBarRight: {
+    flexDirection: 'row',
+    gap: 12,
+    width: 80,
+    justifyContent: 'flex-end',
+  },
+  iconButton: {
+    padding: 6,
+    borderRadius: 8,
+  },
+  iconText: {
+    fontSize: 22,
+  },
+
+  content: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+
+  // Hero Section
+  hero: {
+    marginBottom: 36,
+    paddingHorizontal: 0,
+  },
+  heroTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginBottom: 10,
+    letterSpacing: -0.5,
+    lineHeight: 34,
+  },
+  heroSubtitle: {
+    fontSize: 15,
+    color: '#6B7280',
+    lineHeight: 22,
+  },
+
   header: {
     marginBottom: 24,
   },
@@ -388,12 +511,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   section: {
-    marginBottom: 24,
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
+    marginBottom: 28,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -407,7 +536,27 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.text,
+    color: '#1A1A1A',
+  },
+  contactCounter: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#9CA3AF',
+  },
+
+  // Contacts Container
+  contactsContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 0,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+    overflow: 'hidden',
   },
   loadingContainer: {
     flexDirection: 'row',
@@ -459,22 +608,81 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   emptyState: {
-    backgroundColor: colors.gray[50],
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    padding: 24,
+    margin: 16,
   },
   emptyStateText: {
-    color: colors.textLight,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    fontSize: 14,
+    lineHeight: 20,
   },
-  contactCard: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 12,
-    gap: 12,
+
+  // Contact Row (compact list style)
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
+  contactAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#5b5299',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  contactAvatarText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  contactRowInfo: {
+    flex: 1,
+  },
+  contactRowHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  contactRowName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1A1A1A',
+  },
+  primaryBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: '#EFF6FF',
+  },
+  primaryBadgeText: {
+    color: '#3B82F6',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  contactRowPhone: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  deleteIcon: {
+    padding: 8,
+    marginLeft: 4,
+  },
+  deleteIconText: {
+    fontSize: 22,
+    color: '#9CA3AF',
+    fontWeight: '400',
+  },
+
+  // Legacy contact styles (kept for compatibility)
   contactInfo: {
     gap: 4,
   },
@@ -487,17 +695,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: colors.text,
-  },
-  primaryBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: '#EAF3FF',
-  },
-  primaryBadgeText: {
-    color: colors.primary,
-    fontSize: 12,
-    fontWeight: '700',
   },
   contactPhone: {
     color: colors.text,
@@ -513,38 +710,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
-  setPrimaryButton: {
-    flex: 1,
-    borderRadius: 10,
-    backgroundColor: colors.gray[100],
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  setPrimaryButtonText: {
-    color: colors.text,
-    fontWeight: '700',
-  },
-  removeButton: {
-    flex: 1,
-    borderRadius: 10,
-    backgroundColor: '#FEE2E2',
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  removeButtonText: {
-    color: colors.danger,
-    fontWeight: '700',
-  },
   addContactButton: {
-    borderRadius: 12,
-    backgroundColor: colors.gray[100],
-    paddingVertical: 14,
+    borderRadius: 0,
+    backgroundColor: 'transparent',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
     alignItems: 'center',
-    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    borderStyle: 'dashed',
   },
   addContactButtonText: {
-    color: colors.text,
-    fontWeight: '700',
+    color: '#5b5299',
+    fontWeight: '600',
+    fontSize: 15,
   },
   addContactForm: {
     marginTop: 14,
@@ -576,18 +755,154 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontWeight: '700',
   },
-  continueButton: {
-    backgroundColor: colors.primary,
+  // Check-in Frequency
+  frequencyOptions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 14,
+  },
+  frequencyOption: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 20,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 0,
+  },
+  frequencyOptionActive: {
+    backgroundColor: '#1A1A1A',
+  },
+  frequencyText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  frequencyTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  frequencyHelper: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    lineHeight: 19,
+  },
+
+  // Preference Cards
+  preferenceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  preferenceIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  preferenceIconText: {
+    fontSize: 22,
+  },
+  preferenceInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  preferenceTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    marginBottom: 6,
+  },
+  preferenceDescription: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    lineHeight: 19,
+  },
+
+  // Legacy Toggle Cards (kept for compatibility)
+  toggleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  toggleInfo: {
+    flex: 1,
+    marginRight: 16,
+  },
+  toggleTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    marginBottom: 4,
+  },
+  toggleDescription: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
+  },
+  toggle: {
+    width: 48,
+    height: 28,
     borderRadius: 14,
+    backgroundColor: '#D1D5DB',
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleActive: {
+    backgroundColor: '#5b5299',
+  },
+  toggleThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  toggleThumbActive: {
+    transform: [{ translateX: 20 }],
+  },
+
+  continueButton: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 12,
     paddingVertical: 18,
     alignItems: 'center',
+    marginTop: 20,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
   continueButtonDisabled: {
     opacity: 0.65,
   },
   continueButtonText: {
-    color: colors.white,
+    color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });

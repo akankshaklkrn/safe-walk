@@ -3,7 +3,6 @@ import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { colors } from '../constants/colors';
 import { generateRouteSummary, generateMockRouteSummary } from '../services/p3';
@@ -130,18 +129,33 @@ export default function RouteSelectionScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backText}>← Back</Text>
+    <View style={styles.container}>
+      {/* Top App Bar */}
+      <View style={styles.appBar}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.title}>Choose Your Route</Text>
-          <Text style={styles.destination}>To: {destination}</Text>
-          <Text style={styles.modeIndicator}>
+        <Text style={styles.appBarTitle}>Select Route</Text>
+        <View style={styles.appBarRight}>
+          <TouchableOpacity style={styles.iconButton}>
+            <Text style={styles.iconText}>🔔</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconButton}>
+            <Text style={styles.iconText}>⚙️</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Header Section */}
+      <View style={styles.headerSection}>
+        <Text style={styles.headerTitle}>Choose Your Route</Text>
+        <Text style={styles.headerDestination}>To: {destination}</Text>
+        <View style={styles.contextRow}>
+          <Text style={styles.contextMode}>
             {mode === 'walking' ? '🚶 Walking' : '🚗 Driving'}
           </Text>
-          <Text style={styles.comparisonText}>{routeSummary.overallComparison}</Text>
+          <Text style={styles.contextDivider}>•</Text>
+          <Text style={styles.contextAI}>AI companion is ready to join you.</Text>
         </View>
       </View>
 
@@ -192,7 +206,11 @@ export default function RouteSelectionScreen() {
         ))}
       </ScrollView>
 
-      <View style={styles.footer}>
+      {/* Bottom Section */}
+      <View style={styles.bottomSection}>
+        <Text style={styles.helperText}>
+          {routeSummary.overallComparison || 'Select a route to see details and start your trip.'}
+        </Text>
         <TouchableOpacity
           style={[
             styles.startButton,
@@ -207,30 +225,156 @@ export default function RouteSelectionScreen() {
           }
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container:       { flex: 1, backgroundColor: colors.background },
+
+  // App Bar
+  appBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 54,
+    paddingBottom: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8E8E8',
+  },
+  backButton: {
+    width: 80,
+    alignItems: 'flex-start',
+  },
+  backIcon: {
+    fontSize: 24,
+    color: '#1A1A1A',
+  },
+  appBarTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A1A1A',
+  },
+  appBarRight: {
+    flexDirection: 'row',
+    gap: 12,
+    width: 80,
+    justifyContent: 'flex-end',
+  },
+  iconButton: {
+    padding: 6,
+    borderRadius: 8,
+  },
+  iconText: {
+    fontSize: 22,
+  },
+
+  // Header Section
+  headerSection: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 24,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginBottom: 8,
+    lineHeight: 30,
+  },
+  headerDestination: {
+    fontSize: 15,
+    color: '#6B7280',
+    marginBottom: 14,
+    lineHeight: 20,
+  },
+  contextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  contextMode: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1A1A1A',
+  },
+  contextDivider: {
+    fontSize: 14,
+    color: '#D1D5DB',
+    marginHorizontal: 2,
+  },
+  contextAI: {
+    fontSize: 14,
+    color: '#9CA3AF',
+  },
+
+  // Legacy styles (kept for compatibility)
   header:          { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
-  backButton:      { marginBottom: 12 },
   backText:        { fontSize: 16, color: colors.primary, fontWeight: '600' },
   headerContent:   { gap: 4 },
   title:           { fontSize: 28, fontWeight: 'bold', color: colors.text },
   destination:     { fontSize: 16, color: colors.textLight },
   modeIndicator:   { fontSize: 14, color: colors.primary, fontWeight: '600', marginTop: 4 },
   comparisonText:  { fontSize: 14, color: colors.textLight, lineHeight: 20, marginTop: 8 },
-  scrollView:      { flex: 1 },
-  scrollContent:   { padding: 24 },
+  scrollView:      { flex: 1, backgroundColor: '#F9FAFB' },
+  scrollContent:   { padding: 20, paddingTop: 24 },
+
+  // Bottom Section
+  bottomSection: {
+    padding: 20,
+    paddingBottom: 34,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  helperText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    lineHeight: 20,
+    marginBottom: 16,
+    textAlign: 'center',
+    paddingHorizontal: 12,
+  },
+  startButton: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 12,
+    paddingVertical: 18,
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  startButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+    opacity: 0.7,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  startButtonText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+
+  // Legacy footer styles
   footer:          { padding: 24, paddingBottom: 32, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.white },
-  startButton:     { backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 18, alignItems: 'center', shadowColor: colors.black, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
-  startButtonDisabled: { backgroundColor: colors.gray[300], shadowOpacity: 0, elevation: 0 },
-  startButtonText: { color: colors.white, fontSize: 18, fontWeight: '600' },
   centeredState:   { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 16 },
-  stateText:       { fontSize: 15, color: colors.textLight, textAlign: 'center' },
-  errorIcon:       { fontSize: 40 },
-  errorText:       { fontSize: 15, color: colors.red, textAlign: 'center', paddingHorizontal: 16 },
-  retryButton:     { marginTop: 8, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: colors.primary, borderRadius: 8 },
-  retryText:       { color: colors.white, fontWeight: '600' },
+  stateText:       { fontSize: 15, color: '#6B7280', textAlign: 'center', lineHeight: 22 },
+  errorIcon:       { fontSize: 40, marginBottom: 4 },
+  errorText:       { fontSize: 15, color: colors.red, textAlign: 'center', paddingHorizontal: 20, lineHeight: 22 },
+  retryButton:     { marginTop: 12, paddingHorizontal: 28, paddingVertical: 14, backgroundColor: colors.primary, borderRadius: 10 },
+  retryText:       { color: colors.white, fontWeight: '700', fontSize: 15 },
 });
