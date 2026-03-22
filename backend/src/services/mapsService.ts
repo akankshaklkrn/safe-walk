@@ -48,6 +48,40 @@ const MAIN_ROAD_REGEX = /\b(avenue|ave|boulevard|blvd|broadway|highway|hwy|freew
 const COMMERCIAL_REGEX = /\b(avenue|ave|boulevard|blvd|broadway|market|plaza|center|centre|station|mall|campus|university|college|hospital|hotel|shop|shops|restaurant|cafe|library|terminal|transit)\b/i;
 const RESIDENTIAL_REGEX = /\b(street|st|drive|dr|lane|ln|court|ct|place|pl|terrace|ter|way|circle|cir)\b/i;
 const PLACE_SIGNAL_REGEX = /\b(park|station|plaza|center|centre|mall|campus|university|college|hospital|hotel|restaurant|cafe|library|museum|market|school|terminal|transit)\b/i;
+const COMMERCIAL_PLACE_TYPES = new Set([
+  'restaurant',
+  'cafe',
+  'bar',
+  'shopping_mall',
+  'store',
+  'supermarket',
+  'bank',
+  'pharmacy',
+  'transit_station',
+  'bus_station',
+  'train_station',
+  'subway_station',
+  'lodging',
+  'gym',
+  'movie_theater',
+  'university',
+  'school',
+  'library',
+  'hospital',
+  'tourist_attraction',
+]);
+const RESIDENTIAL_PLACE_TYPES = new Set([
+  'park',
+  'campground',
+  'rv_park',
+  'church',
+  'place_of_worship',
+  'premise',
+  'subpremise',
+  'locality',
+  'neighborhood',
+]);
+const ROUTE_SAMPLE_COUNT = 3;
 
 function stripHtml(html: string | undefined): string {
   return (html ?? '')
@@ -62,8 +96,77 @@ function countMatch(regex: RegExp, text: string): number {
   return matches?.length ?? 0;
 }
 
+function sampleRoutePoints(waypoints: LatLng[]): LatLng[] {
+  if (waypoints.length <= ROUTE_SAMPLE_COUNT) {
+    return waypoints;
+  }
+
+  const indices = [0, Math.floor((waypoints.length - 1) / 2), waypoints.length - 1];
+  return [...new Set(indices)].map((index) => waypoints[index]).filter(Boolean);
+}
+
+async function fetchRoutePlaceSignals(
+  waypoints: LatLng[],
+  mode: CommuteMode,
+): Promise<{ nearbyPlaceCount: number; commercialPlaces: number; residentialPlaces: number }> {
+  const samplePoints = sampleRoutePoints(waypoints);
+  if (samplePoints.length === 0) {
+    return { nearbyPlaceCount: 0, commercialPlaces: 0, residentialPlaces: 0 };
+  }
+
+  const radius = mode === 'car' ? 220 : 160;
+
+  try {
+    const responses = await Promise.all(
+      samplePoints.map((location) =>
+        mapsClient.placesNearby({
+          params: {
+            location,
+            radius,
+            key: env.GOOGLE_MAPS_API_KEY,
+          },
+        })
+      )
+    );
+
+    const dedupedPlaces = new Map<string, string[]>();
+
+    for (const response of responses) {
+      for (const place of response.data.results ?? []) {
+        const placeId = place.place_id ?? `${place.name}-${place.vicinity ?? ''}`;
+        const placeTypes = Array.isArray(place.types) ? place.types : [];
+        if (!dedupedPlaces.has(placeId)) {
+          dedupedPlaces.set(placeId, placeTypes);
+        }
+      }
+    }
+
+    let commercialPlaces = 0;
+    let residentialPlaces = 0;
+
+    for (const placeTypes of dedupedPlaces.values()) {
+      if (placeTypes.some((type) => COMMERCIAL_PLACE_TYPES.has(type))) {
+        commercialPlaces += 1;
+      }
+      if (placeTypes.some((type) => RESIDENTIAL_PLACE_TYPES.has(type))) {
+        residentialPlaces += 1;
+      }
+    }
+
+    return {
+      nearbyPlaceCount: dedupedPlaces.size,
+      commercialPlaces,
+      residentialPlaces,
+    };
+  } catch (error) {
+    console.warn('[SafeWalk] Nearby places lookup failed for route sampling:', error);
+    return { nearbyPlaceCount: 0, commercialPlaces: 0, residentialPlaces: 0 };
+  }
+}
+
 function deriveRouteMetrics(
   route: { legs: Array<{ steps?: Array<{ html_instructions?: string; maneuver?: string | undefined }> }> ; summary?: string | null },
+  placeSignals: { nearbyPlaceCount: number; commercialPlaces: number; residentialPlaces: number },
   etaMinutes: number,
   distanceMeters: number,
   bestEtaMinutes: number,
@@ -81,10 +184,13 @@ function deriveRouteMetrics(
   }).length;
   const mainRoadStepCount = stepInstructions.filter((instruction) => MAIN_ROAD_REGEX.test(instruction)).length
     + (MAIN_ROAD_REGEX.test(summaryText) ? 1 : 0);
-  const commercialSignals = countMatch(COMMERCIAL_REGEX, fullText);
-  const residentialSignals = countMatch(RESIDENTIAL_REGEX, fullText);
-  const nearbyPlaceCount = countMatch(PLACE_SIGNAL_REGEX, fullText)
+  const textualCommercialSignals = countMatch(COMMERCIAL_REGEX, fullText);
+  const textualResidentialSignals = countMatch(RESIDENTIAL_REGEX, fullText);
+  const textualPlaceSignals = countMatch(PLACE_SIGNAL_REGEX, fullText)
     + stepInstructions.filter((instruction) => /pass by|destination will be|toward/i.test(instruction)).length;
+  const commercialSignals = textualCommercialSignals + placeSignals.commercialPlaces;
+  const residentialSignals = textualResidentialSignals + placeSignals.residentialPlaces;
+  const nearbyPlaceCount = Math.max(placeSignals.nearbyPlaceCount, textualPlaceSignals);
   const mainRoadRatio = stepCount > 0
     ? Math.min(1, mainRoadStepCount / stepCount)
     : 0;
@@ -115,13 +221,13 @@ function deriveRouteMetrics(
 
   let activityLevel: RouteMetrics['activityLevel'] = 'low';
   if (
-    nearbyPlaceCount >= 5 ||
-    (nearbyPlaceCount >= 3 && areaCharacter === 'commercial') ||
-    (mainRoadRatio >= 0.55 && commercialSignals >= 2)
+    nearbyPlaceCount >= 8 ||
+    (nearbyPlaceCount >= 5 && areaCharacter === 'commercial') ||
+    (mainRoadRatio >= 0.55 && commercialSignals >= 3)
   ) {
     activityLevel = 'high';
   } else if (
-    nearbyPlaceCount >= 2 ||
+    nearbyPlaceCount >= 3 ||
     areaCharacter === 'mixed' ||
     mainRoadRatio >= 0.3
   ) {
@@ -302,7 +408,7 @@ export async function fetchRoutes(
     );
 
     // Take at most 3 and normalise each one
-    return topRoutes.map((route, index) => {
+    return await Promise.all(topRoutes.map(async (route, index) => {
       // A route can have multiple legs if there are waypoints.
       // For point-to-point trips there is always exactly one leg.
       const totalDurationSec = route.legs.reduce(
@@ -324,6 +430,7 @@ export async function fetchRoutes(
         { lat: firstLeg.start_location.lat, lng: firstLeg.start_location.lng },
         { lat: lastLeg.end_location.lat,    lng: lastLeg.end_location.lng   },
       ];
+      const placeSignals = await fetchRoutePlaceSignals(waypoints, mode);
 
       return {
         id:             `route_${index}`,
@@ -345,13 +452,14 @@ export async function fetchRoutes(
         summary: route.summary || undefined,
         metrics: deriveRouteMetrics(
           route,
+          placeSignals,
           Math.round(totalDurationSec / 60),
           Math.round(totalDistanceM),
           bestEtaMinutes,
           bestDistanceMeters,
         ),
       } satisfies RouteOption;
-    });
+    }));
 
   } catch (err) {
     if (err instanceof MapsError) throw err;
