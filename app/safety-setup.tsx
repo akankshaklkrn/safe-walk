@@ -18,7 +18,7 @@ import { EmergencyContact, Location, LocationPermissionStatus } from '../types';
 
 export default function SafetySetupScreen() {
   const router = useRouter();
-  const { destination, mode } = useLocalSearchParams();
+  const { destination, mode, safeWord } = useLocalSearchParams();
   const { updateTripSetup } = useTripContext();
 
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
@@ -164,7 +164,7 @@ export default function SafetySetupScreen() {
 
     router.push({
       pathname: '/route-selection',
-      params: { destination, mode },
+      params: { destination, mode, safeWord },
     });
   };
 
