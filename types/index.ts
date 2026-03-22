@@ -16,6 +16,14 @@ export interface EmergencyContact {
   isPrimary: boolean;
 }
 
+export interface UserProfile {
+  uid: string;
+  name: string;
+  email: string;
+  photoURL?: string | null;
+  safeWord?: string;
+}
+
 export interface TripSetupData {
   destination: string;
   mode: CommuteMode;

@@ -1,32 +1,53 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  View,
+  Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  Keyboard,
+  View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors } from '../constants/colors';
-import { CommuteMode } from '../types';
+import { useAuthContext } from '../context/AuthContext';
 import { checkHealth, getPlaceSuggestions, type PlaceSuggestion } from '../services/api';
+import { CommuteMode } from '../types';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [destination, setDestination]   = useState('');
-  const [mode, setMode]                 = useState<CommuteMode>('walking');
-  const [safeWord, setSafeWord]         = useState('');
+  const { authUser, loading, logout, profile, saveProfile } = useAuthContext();
+  const [destination, setDestination] = useState('');
+  const [mode, setMode] = useState<CommuteMode>('walking');
+  const [safeWord, setSafeWord] = useState('');
+  const [safeWordMode, setSafeWordMode] = useState<'stored' | 'new'>('new');
   const [backendStatus, setBackendStatus] = useState<'checking' | 'ok' | 'offline'>('checking');
-  const [suggestions, setSuggestions]   = useState<PlaceSuggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (!loading && !authUser) {
+      router.replace('/login');
+    }
+  }, [authUser, loading, router]);
+
+  useEffect(() => {
     checkHealth().then((ok) => setBackendStatus(ok ? 'ok' : 'offline'));
   }, []);
+
+  useEffect(() => {
+    if (profile?.safeWord) {
+      setSafeWord(profile.safeWord);
+      setSafeWordMode('stored');
+    } else {
+      setSafeWord('');
+      setSafeWordMode('new');
+    }
+  }, [profile?.safeWord]);
 
   const handleDestinationChange = (text: string) => {
     setDestination(text);
@@ -51,29 +72,54 @@ export default function HomeScreen() {
   };
 
   const handleFindRoutes = () => {
-    if (destination.trim()) {
-      setShowDropdown(false);
-      router.push({
-        pathname: '/safety-setup',
-        params: { destination, mode, safeWord },
-      });
+    if (!destination.trim()) {
+      return;
     }
+
+    const selectedSafeWord = safeWordMode === 'stored' ? profile?.safeWord ?? '' : safeWord.trim();
+
+    if (safeWordMode === 'new' && selectedSafeWord) {
+      void saveProfile({ safeWord: selectedSafeWord });
+    }
+
+    setShowDropdown(false);
+    router.push({
+      pathname: '/safety-setup',
+      params: { destination, mode, safeWord: selectedSafeWord },
+    });
   };
+
+  if (!authUser) {
+    return <View style={styles.container} />;
+  }
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <TouchableOpacity style={styles.logoutButton} onPress={() => void logout()}>
+          <Text style={styles.logoutButtonText}>Log Out</Text>
+        </TouchableOpacity>
 
-        {/* ── Header ────────────────────────────────────────────────── */}
         <View style={styles.header}>
+          <Image
+            source={require('../assets/safewalk.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
           <Text style={styles.title}>SafeWalk</Text>
-          <Text style={styles.subtitle}>Your AI walking companion</Text>
+          <Text style={styles.subtitle}>Hi, {profile?.name || authUser.displayName || 'there'}.</Text>
+          <Text style={styles.subtitleSecondary}>
+            Your AI walking companion is ready for the next trip.
+          </Text>
         </View>
 
-        {/* ── Backend status indicator ─────────────────────────────── */}
         <TouchableOpacity
           style={styles.statusRow}
           onPress={() => {
@@ -85,12 +131,11 @@ export default function HomeScreen() {
           <View style={[styles.statusDot, statusDotStyle(backendStatus)]} />
           <Text style={styles.statusText}>
             {backendStatus === 'checking' && 'Connecting to backend…'}
-            {backendStatus === 'ok'       && 'Backend connected  ·  tap to recheck'}
-            {backendStatus === 'offline'  && 'Backend offline  ·  tap to retry'}
+            {backendStatus === 'ok' && 'Backend connected  ·  tap to recheck'}
+            {backendStatus === 'offline' && 'Backend offline  ·  tap to retry'}
           </Text>
         </TouchableOpacity>
 
-        {/* ── Travel mode ───────────────────────────────────────────── */}
         <View style={styles.modeSection}>
           <Text style={styles.label}>How are you traveling?</Text>
           <View style={styles.modeButtons}>
@@ -116,7 +161,6 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* ── Destination input with autocomplete ───────────────────── */}
         <View style={styles.inputSection}>
           <Text style={styles.label}>Where are you going?</Text>
           <TextInput
@@ -129,36 +173,71 @@ export default function HomeScreen() {
             autoCapitalize="none"
             autoCorrect={false}
           />
-          {showDropdown && suggestions.map((item, index) => (
-            <TouchableOpacity
-              key={item.placeId}
-              style={[
-                styles.suggestionItem,
-                index === 0 && styles.suggestionItemFirst,
-                index === suggestions.length - 1 && styles.suggestionItemLast,
-              ]}
-              onPress={() => handleSelectSuggestion(item)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.suggestionIcon}>📍</Text>
-              <Text style={styles.suggestionText} numberOfLines={2}>
-                {item.description}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {showDropdown &&
+            suggestions.map((item, index) => (
+              <TouchableOpacity
+                key={item.placeId}
+                style={[
+                  styles.suggestionItem,
+                  index === 0 && styles.suggestionItemFirst,
+                  index === suggestions.length - 1 && styles.suggestionItemLast,
+                ]}
+                onPress={() => handleSelectSuggestion(item)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.suggestionIcon}>📍</Text>
+                <Text style={styles.suggestionText} numberOfLines={2}>
+                  {item.description}
+                </Text>
+              </TouchableOpacity>
+            ))}
         </View>
 
         <View style={styles.inputSection}>
-          <Text style={styles.label}>Set a safe word</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Optional phrase only you would know"
-            placeholderTextColor={colors.textLight}
-            value={safeWord}
-            onChangeText={setSafeWord}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
+          <Text style={styles.label}>Safe word</Text>
+          {profile?.safeWord ? (
+            <View style={styles.safeWordOptions}>
+              <TouchableOpacity
+                style={[styles.safeWordChoice, safeWordMode === 'stored' && styles.safeWordChoiceActive]}
+                onPress={() => {
+                  setSafeWordMode('stored');
+                  setSafeWord(profile.safeWord || '');
+                }}
+              >
+                <Text style={[styles.safeWordChoiceText, safeWordMode === 'stored' && styles.safeWordChoiceTextActive]}>
+                  Use saved word
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.safeWordChoice, safeWordMode === 'new' && styles.safeWordChoiceActive]}
+                onPress={() => setSafeWordMode('new')}
+              >
+                <Text style={[styles.safeWordChoiceText, safeWordMode === 'new' && styles.safeWordChoiceTextActive]}>
+                  Create new
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {safeWordMode === 'stored' && profile?.safeWord ? (
+            <View style={styles.savedSafeWordCard}>
+              <Text style={styles.savedSafeWordLabel}>Saved safe word</Text>
+              <Text style={styles.savedSafeWordValue}>{profile.safeWord}</Text>
+            </View>
+          ) : null}
+
+          {(safeWordMode === 'new' || !profile?.safeWord) && (
+            <TextInput
+              style={styles.input}
+              placeholder="Optional phrase only you would know"
+              placeholderTextColor={colors.textLight}
+              value={safeWord}
+              onChangeText={setSafeWord}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          )}
+
           <Text style={styles.helperText}>
             If this word comes up during the conversation, SafeWalk will escalate immediately.
           </Text>
@@ -171,14 +250,13 @@ export default function HomeScreen() {
         >
           <Text style={styles.buttonText}>Find Routes</Text>
         </TouchableOpacity>
-
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 function statusDotStyle(status: 'checking' | 'ok' | 'offline') {
-  if (status === 'ok')      return { backgroundColor: colors.green };
+  if (status === 'ok') return { backgroundColor: colors.green };
   if (status === 'offline') return { backgroundColor: colors.red };
   return { backgroundColor: colors.yellow };
 }
@@ -189,25 +267,50 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 80,
+    paddingTop: 44,
+    paddingBottom: 36,
   },
   header: {
-    marginBottom: 28,
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  logoImage: {
+    width: 84,
+    height: 84,
+    marginBottom: 4,
   },
   title: {
-    fontSize: 48,
+    fontSize: 34,
     fontWeight: 'bold',
-    color: colors.primary,
-    marginBottom: 8,
+    color: '#5b5299',
+    marginBottom: 4,
   },
   subtitle: {
-    fontSize: 18,
-    color: colors.textLight,
+    fontSize: 17,
+    color: colors.text,
+    fontWeight: '700',
+    textAlign: 'center',
   },
-
-  // ── Backend status ─────────────────────────────────────────────────────
+  subtitleSecondary: {
+    fontSize: 14,
+    color: colors.textLight,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  logoutButton: {
+    alignSelf: 'flex-end',
+    marginBottom: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#EEEAFE',
+  },
+  logoutButtonText: {
+    color: '#5b5299',
+    fontWeight: '700',
+  },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -230,8 +333,6 @@ const styles = StyleSheet.create({
     color: colors.textLight,
     flex: 1,
   },
-
-  // ── Rest ──────────────────────────────────────────────────────────────
   modeSection: {
     marginBottom: 32,
   },
@@ -250,8 +351,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   modeButtonActive: {
-    borderColor: colors.primary,
-    backgroundColor: '#F0F8FF',
+    borderColor: '#5b5299',
+    backgroundColor: '#F3F0FF',
   },
   modeIcon: {
     fontSize: 32,
@@ -262,10 +363,10 @@ const styles = StyleSheet.create({
     color: colors.textLight,
   },
   modeTextActive: {
-    color: colors.primary,
+    color: '#5b5299',
   },
   inputSection: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
   label: {
     fontSize: 16,
@@ -324,8 +425,51 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 20,
   },
+  safeWordOptions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  safeWordChoice: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.gray[100],
+    alignItems: 'center',
+  },
+  safeWordChoiceActive: {
+    borderColor: '#5b5299',
+    backgroundColor: '#F3F0FF',
+  },
+  safeWordChoiceText: {
+    color: colors.text,
+    fontWeight: '600',
+  },
+  safeWordChoiceTextActive: {
+    color: '#5b5299',
+  },
+  savedSafeWordCard: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 14,
+    backgroundColor: colors.white,
+    marginBottom: 12,
+  },
+  savedSafeWordLabel: {
+    fontSize: 12,
+    color: colors.textLight,
+    marginBottom: 4,
+  },
+  savedSafeWordValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+  },
   button: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#5b5299',
     borderRadius: 12,
     paddingVertical: 18,
     alignItems: 'center',

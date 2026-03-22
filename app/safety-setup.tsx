@@ -1,24 +1,31 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ExpoLocation from 'expo-location';
 import { colors } from '../constants/colors';
+import { useAuthContext } from '../context/AuthContext';
 import { useTripContext } from '../context/TripContext';
 import { EmergencyContact, Location, LocationPermissionStatus } from '../types';
 
 export default function SafetySetupScreen() {
   const router = useRouter();
-  const { destination, mode, safeWord } = useLocalSearchParams();
+  const { destination, mode, safeWord } = useLocalSearchParams<{
+    destination: string;
+    mode: 'walking' | 'car';
+    safeWord: string;
+  }>();
+  const { authUser, emergencyContacts: savedContacts, loading: authLoading, saveEmergencyContacts } =
+    useAuthContext();
   const { updateTripSetup } = useTripContext();
 
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
@@ -26,6 +33,7 @@ export default function SafetySetupScreen() {
     useState<LocationPermissionStatus>('undetermined');
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [savingContacts, setSavingContacts] = useState(false);
 
   const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
   const [showAddContact, setShowAddContact] = useState(false);
@@ -38,7 +46,17 @@ export default function SafetySetupScreen() {
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
-    requestLocationPermission();
+    if (!authLoading && !authUser) {
+      router.replace('/login');
+    }
+  }, [authLoading, authUser, router]);
+
+  useEffect(() => {
+    setEmergencyContacts(savedContacts);
+  }, [savedContacts]);
+
+  useEffect(() => {
+    void requestLocationPermission();
   }, []);
 
   const requestLocationPermission = async () => {
@@ -53,9 +71,11 @@ export default function SafetySetupScreen() {
         await fetchCurrentLocation();
       } else {
         setLocationPermissionStatus('denied');
-        setLocationError('Location permission denied. You can still continue, but some features may be limited.');
+        setLocationError(
+          'Location permission denied. You can still continue, but some features may be limited.'
+        );
       }
-    } catch (error) {
+    } catch {
       setLocationPermissionStatus('denied');
       setLocationError('Failed to request location permission.');
     } finally {
@@ -70,22 +90,13 @@ export default function SafetySetupScreen() {
       });
 
       const { latitude, longitude } = location.coords;
-
-      const reverseGeocode = await ExpoLocation.reverseGeocodeAsync({
-        latitude,
-        longitude,
-      });
-
+      const reverseGeocode = await ExpoLocation.reverseGeocodeAsync({ latitude, longitude });
       const address = reverseGeocode[0]
         ? `${reverseGeocode[0].street || ''}, ${reverseGeocode[0].city || ''}, ${reverseGeocode[0].region || ''}`
         : undefined;
 
-      setCurrentLocation({
-        latitude,
-        longitude,
-        address,
-      });
-    } catch (error) {
+      setCurrentLocation({ latitude, longitude, address });
+    } catch {
       setLocationError('Failed to fetch current location. Please try again.');
     }
   };
@@ -127,7 +138,7 @@ export default function SafetySetupScreen() {
       isPrimary: emergencyContacts.length === 0,
     };
 
-    setEmergencyContacts([...emergencyContacts, contact]);
+    setEmergencyContacts((prev) => [...prev, contact]);
     setNewContact({ name: '', phoneNumber: '', email: '', relationship: '' });
     setFormErrors({});
     setShowAddContact(false);
@@ -135,7 +146,7 @@ export default function SafetySetupScreen() {
 
   const handleRemoveContact = (id: string) => {
     const updatedContacts = emergencyContacts.filter((c) => c.id !== id);
-    
+
     if (updatedContacts.length > 0 && !updatedContacts.some((c) => c.isPrimary)) {
       updatedContacts[0].isPrimary = true;
     }
@@ -144,15 +155,15 @@ export default function SafetySetupScreen() {
   };
 
   const handleSetPrimary = (id: string) => {
-    setEmergencyContacts(
-      emergencyContacts.map((c) => ({
+    setEmergencyContacts((prev) =>
+      prev.map((c) => ({
         ...c,
         isPrimary: c.id === id,
       }))
     );
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (emergencyContacts.length === 0) {
       Alert.alert(
         'No Emergency Contacts',
@@ -162,19 +173,29 @@ export default function SafetySetupScreen() {
       return;
     }
 
-    updateTripSetup({
-      destination: destination as string,
-      mode: mode as 'walking' | 'car',
-      currentLocation,
-      locationPermissionStatus,
-      emergencyContacts,
-    });
+    setSavingContacts(true);
+    try {
+      await saveEmergencyContacts(emergencyContacts);
+      updateTripSetup({
+        destination: destination || '',
+        mode: mode || 'walking',
+        currentLocation,
+        locationPermissionStatus,
+        emergencyContacts,
+      });
 
-    router.push({
-      pathname: '/route-selection',
-      params: { destination, mode, safeWord },
-    });
+      router.push({
+        pathname: '/route-selection',
+        params: { destination, mode, safeWord },
+      });
+    } finally {
+      setSavingContacts(false);
+    }
   };
+
+  if (!authUser) {
+    return <SafeAreaView style={styles.container} />;
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -182,8 +203,9 @@ export default function SafetySetupScreen() {
         <View style={styles.header}>
           <Text style={styles.title}>Safety Setup</Text>
           <Text style={styles.subtitle}>
-            Let's set up your safety information before we start
+            Review location, emergency contacts, and the safe word you will use on this trip.
           </Text>
+          {safeWord ? <Text style={styles.safeWordNotice}>Current trip safe word: {safeWord}</Text> : null}
         </View>
 
         <View style={styles.section}>
@@ -201,7 +223,8 @@ export default function SafetySetupScreen() {
             <View style={styles.locationCard}>
               <Text style={styles.locationLabel}>Your current location:</Text>
               <Text style={styles.locationText}>
-                {currentLocation.address || `${currentLocation.latitude.toFixed(6)}, ${currentLocation.longitude.toFixed(6)}`}
+                {currentLocation.address ||
+                  `${currentLocation.latitude.toFixed(6)}, ${currentLocation.longitude.toFixed(6)}`}
               </Text>
               <Text style={styles.locationCoords}>
                 {currentLocation.latitude.toFixed(6)}, {currentLocation.longitude.toFixed(6)}
@@ -212,10 +235,7 @@ export default function SafetySetupScreen() {
               <Text style={styles.errorText}>
                 {locationError || 'Location permission not granted'}
               </Text>
-              <TouchableOpacity
-                style={styles.retryButton}
-                onPress={requestLocationPermission}
-              >
+              <TouchableOpacity style={styles.retryButton} onPress={() => void requestLocationPermission()}>
                 <Text style={styles.retryButtonText}>Retry</Text>
               </TouchableOpacity>
             </View>
@@ -228,32 +248,38 @@ export default function SafetySetupScreen() {
             <Text style={styles.sectionTitle}>Emergency Contacts</Text>
           </View>
 
+          {emergencyContacts.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>No saved contacts yet. Add one below.</Text>
+            </View>
+          ) : null}
+
           {emergencyContacts.map((contact) => (
             <View key={contact.id} style={styles.contactCard}>
               <View style={styles.contactInfo}>
                 <View style={styles.contactHeader}>
                   <Text style={styles.contactName}>{contact.name}</Text>
-                  {contact.isPrimary && (
+                  {contact.isPrimary ? (
                     <View style={styles.primaryBadge}>
                       <Text style={styles.primaryBadgeText}>Primary</Text>
                     </View>
-                  )}
+                  ) : null}
                 </View>
                 <Text style={styles.contactPhone}>{contact.phoneNumber}</Text>
                 <Text style={styles.contactEmail}>{contact.email}</Text>
-                {contact.relationship && (
+                {contact.relationship ? (
                   <Text style={styles.contactRelationship}>{contact.relationship}</Text>
-                )}
+                ) : null}
               </View>
               <View style={styles.contactActions}>
-                {!contact.isPrimary && (
+                {!contact.isPrimary ? (
                   <TouchableOpacity
                     style={styles.setPrimaryButton}
                     onPress={() => handleSetPrimary(contact.id)}
                   >
                     <Text style={styles.setPrimaryButtonText}>Set Primary</Text>
                   </TouchableOpacity>
-                )}
+                ) : null}
                 <TouchableOpacity
                   style={styles.removeButton}
                   onPress={() => handleRemoveContact(contact.id)}
@@ -264,73 +290,68 @@ export default function SafetySetupScreen() {
             </View>
           ))}
 
+          <TouchableOpacity
+            style={styles.addContactButton}
+            onPress={() => setShowAddContact((prev) => !prev)}
+          >
+            <Text style={styles.addContactButtonText}>
+              {showAddContact ? 'Cancel' : 'Add Emergency Contact'}
+            </Text>
+          </TouchableOpacity>
+
           {showAddContact ? (
             <View style={styles.addContactForm}>
               <TextInput
-                style={[styles.input, formErrors.name && styles.inputError]}
-                placeholder="Name *"
+                style={styles.input}
+                placeholder="Name"
                 value={newContact.name}
-                onChangeText={(text) => setNewContact({ ...newContact, name: text })}
+                onChangeText={(value) => setNewContact((prev) => ({ ...prev, name: value }))}
               />
-              {formErrors.name && <Text style={styles.errorLabel}>{formErrors.name}</Text>}
+              {formErrors.name ? <Text style={styles.fieldError}>{formErrors.name}</Text> : null}
 
               <TextInput
-                style={[styles.input, formErrors.phoneNumber && styles.inputError]}
-                placeholder="Phone Number *"
+                style={styles.input}
+                placeholder="Phone number"
                 value={newContact.phoneNumber}
-                onChangeText={(text) => setNewContact({ ...newContact, phoneNumber: text })}
+                onChangeText={(value) => setNewContact((prev) => ({ ...prev, phoneNumber: value }))}
                 keyboardType="phone-pad"
               />
-              {formErrors.phoneNumber && (
-                <Text style={styles.errorLabel}>{formErrors.phoneNumber}</Text>
-              )}
+              {formErrors.phoneNumber ? <Text style={styles.fieldError}>{formErrors.phoneNumber}</Text> : null}
 
               <TextInput
-                style={[styles.input, formErrors.email && styles.inputError]}
-                placeholder="Email ID *"
+                style={styles.input}
+                placeholder="Email"
                 value={newContact.email}
-                onChangeText={(text) => setNewContact({ ...newContact, email: text })}
+                onChangeText={(value) => setNewContact((prev) => ({ ...prev, email: value }))}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                autoCorrect={false}
               />
-              {formErrors.email && <Text style={styles.errorLabel}>{formErrors.email}</Text>}
+              {formErrors.email ? <Text style={styles.fieldError}>{formErrors.email}</Text> : null}
 
               <TextInput
                 style={styles.input}
                 placeholder="Relationship (optional)"
                 value={newContact.relationship}
-                onChangeText={(text) => setNewContact({ ...newContact, relationship: text })}
+                onChangeText={(value) => setNewContact((prev) => ({ ...prev, relationship: value }))}
               />
 
-              <View style={styles.formActions}>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => {
-                    setShowAddContact(false);
-                    setNewContact({ name: '', phoneNumber: '', email: '', relationship: '' });
-                    setFormErrors({});
-                  }}
-                >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.saveButton} onPress={handleAddContact}>
-                  <Text style={styles.saveButtonText}>Add Contact</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity style={styles.saveContactButton} onPress={handleAddContact}>
+                <Text style={styles.saveContactButtonText}>Save Contact</Text>
+              </TouchableOpacity>
             </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.addContactButton}
-              onPress={() => setShowAddContact(true)}
-            >
-              <Text style={styles.addContactButtonText}>+ Add Emergency Contact</Text>
-            </TouchableOpacity>
-          )}
+          ) : null}
         </View>
 
-        <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
-          <Text style={styles.continueButtonText}>Continue to Route Selection</Text>
+        <TouchableOpacity
+          style={[styles.continueButton, savingContacts && styles.continueButtonDisabled]}
+          onPress={() => void handleContinue()}
+          disabled={savingContacts}
+        >
+          {savingContacts ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <Text style={styles.continueButtonText}>Continue to Routes</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -344,260 +365,229 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 24,
+    paddingBottom: 48,
   },
   header: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
   title: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: colors.text,
-    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 16,
+    marginTop: 6,
+    fontSize: 15,
     color: colors.textLight,
+    lineHeight: 22,
+  },
+  safeWordNotice: {
+    marginTop: 10,
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '700',
   },
   section: {
-    marginBottom: 32,
+    marginBottom: 24,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    gap: 8,
+    gap: 10,
+    marginBottom: 14,
   },
   sectionIcon: {
-    fontSize: 24,
+    fontSize: 22,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
   },
   loadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    gap: 12,
+    gap: 10,
   },
   loadingText: {
-    fontSize: 15,
     color: colors.textLight,
   },
   locationCard: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.gray[50],
     borderRadius: 12,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: colors.secondary,
+    padding: 14,
   },
   locationLabel: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textLight,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   locationText: {
     fontSize: 16,
-    fontWeight: '600',
     color: colors.text,
-    marginBottom: 4,
+    fontWeight: '600',
   },
   locationCoords: {
+    marginTop: 6,
     fontSize: 13,
     color: colors.textLight,
-    fontFamily: 'monospace',
   },
   errorCard: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#FFF5F5',
     borderRadius: 12,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: colors.danger,
+    padding: 14,
   },
   errorText: {
-    fontSize: 15,
     color: colors.danger,
-    marginBottom: 12,
+    lineHeight: 20,
   },
   retryButton: {
-    backgroundColor: colors.danger,
-    borderRadius: 8,
+    marginTop: 12,
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 14,
     paddingVertical: 10,
-    alignItems: 'center',
+    borderRadius: 10,
   },
   retryButtonText: {
     color: colors.white,
-    fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  emptyState: {
+    backgroundColor: colors.gray[50],
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+  },
+  emptyStateText: {
+    color: colors.textLight,
   },
   contactCard: {
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    padding: 14,
     marginBottom: 12,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    gap: 12,
   },
   contactInfo: {
-    marginBottom: 12,
+    gap: 4,
   },
   contactHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
     gap: 8,
   },
   contactName: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
     color: colors.text,
   },
   primaryBadge: {
-    backgroundColor: colors.primary,
-    borderRadius: 12,
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#EAF3FF',
   },
   primaryBadgeText: {
-    color: colors.white,
+    color: colors.primary,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   contactPhone: {
-    fontSize: 15,
     color: colors.text,
-    marginBottom: 2,
   },
   contactEmail: {
-    fontSize: 14,
     color: colors.textLight,
-    marginBottom: 2,
   },
   contactRelationship: {
-    fontSize: 14,
     color: colors.textLight,
+    fontStyle: 'italic',
   },
   contactActions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
   },
   setPrimaryButton: {
     flex: 1,
+    borderRadius: 10,
     backgroundColor: colors.gray[100],
-    borderRadius: 8,
-    paddingVertical: 8,
+    paddingVertical: 12,
     alignItems: 'center',
   },
   setPrimaryButtonText: {
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: '600',
+    color: colors.text,
+    fontWeight: '700',
   },
   removeButton: {
     flex: 1,
+    borderRadius: 10,
     backgroundColor: '#FEE2E2',
-    borderRadius: 8,
-    paddingVertical: 8,
+    paddingVertical: 12,
     alignItems: 'center',
   },
   removeButtonText: {
     color: colors.danger,
-    fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  addContactButton: {
+    borderRadius: 12,
+    backgroundColor: colors.gray[100],
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  addContactButtonText: {
+    color: colors.text,
+    fontWeight: '700',
   },
   addContactForm: {
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    marginTop: 14,
+    gap: 10,
   },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    marginBottom: 12,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: colors.text,
     backgroundColor: colors.white,
   },
-  inputError: {
-    borderColor: colors.danger,
-  },
-  errorLabel: {
+  fieldError: {
     color: colors.danger,
     fontSize: 13,
-    marginTop: -8,
-    marginBottom: 8,
+    marginTop: -4,
   },
-  formActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  cancelButton: {
-    flex: 1,
-    backgroundColor: colors.gray[100],
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  saveButton: {
-    flex: 1,
+  saveContactButton: {
+    marginTop: 4,
     backgroundColor: colors.primary,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  addContactButton: {
-    backgroundColor: colors.white,
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: colors.primary,
-    borderStyle: 'dashed',
   },
-  addContactButtonText: {
-    color: colors.primary,
-    fontSize: 16,
-    fontWeight: '600',
+  saveContactButtonText: {
+    color: colors.white,
+    fontWeight: '700',
   },
   continueButton: {
-    backgroundColor: colors.secondary,
-    borderRadius: 12,
+    backgroundColor: colors.primary,
+    borderRadius: 14,
     paddingVertical: 18,
     alignItems: 'center',
-    marginTop: 16,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  },
+  continueButtonDisabled: {
+    opacity: 0.65,
   },
   continueButtonText: {
     color: colors.white,
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
   },
 });
