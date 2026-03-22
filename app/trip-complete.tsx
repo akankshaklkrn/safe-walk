@@ -5,139 +5,147 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { colors } from '../constants/colors';
-import { deviationLevelLabel, formatDuration, type DeviationLevel } from '../services/api';
-async function fetchElevenLabsConversationSummary(
-  conversationId: string,
-): Promise<string> {
-  const apiKey = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY;
-  if (!apiKey) {
-    return 'ElevenLabs API key not configured.';
-  }
+import { formatDuration } from '../services/api';
 
+type SummaryResult =
+  | { status: 'ready';   title: string; text: string }
+  | { status: 'pending'; hint: string }
+  | { status: 'error';   msg: string };
+
+async function fetchConversationSummary(conversationId: string): Promise<SummaryResult> {
+  const apiKey = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY;
+
+  if (!apiKey) {
+    return { status: 'error', msg: 'ElevenLabs API key is not configured (EXPO_PUBLIC_ELEVENLABS_API_KEY).' };
+  }
   if (!conversationId) {
-    return 'No conversation ID available. The conversation may not have been established.';
+    return { status: 'error', msg: 'No conversation ID was passed to this screen.' };
   }
 
   try {
-    console.log('[ElevenLabs] Fetching conversation summary for ID:', conversationId);
-    const url = `https://api.elevenlabs.io/v1/convai/conversations/${conversationId}`;
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'xi-api-key': apiKey,
-      },
-    });
+    const res = await fetch(
+      `https://api.elevenlabs.io/v1/convai/conversations/${conversationId}`,
+      { method: 'GET', headers: { 'xi-api-key': apiKey } },
+    );
 
     if (!res.ok) {
-      const errorText = await res.text();
-      console.error('[ElevenLabs] API error:', res.status, res.statusText, errorText);
-      return `Could not fetch conversation summary (${res.status}). The conversation may still be processing.`;
+      return { status: 'error', msg: `ElevenLabs returned ${res.status}. The conversation may still be processing.` };
     }
 
     const data = (await res.json()) as {
-      conversation_id?: string;
-      agent_id?: string;
       status?: string;
-      transcript?: Array<{
-        role: 'agent' | 'user';
-        message: string | null;
-      }>;
+      transcript?: Array<{ role: 'agent' | 'user'; message: string | null }>;
       analysis?: {
         transcript_summary?: string;
         call_summary_title?: string;
       };
     };
 
-    console.log('[ElevenLabs] Conversation status:', data.status);
-
-    // Extract summary from analysis object
-    const summaryTitle = data.analysis?.call_summary_title;
-    const summaryText = data.analysis?.transcript_summary;
-    
-    if (summaryText) {
-      console.log('[ElevenLabs] Found summary:', summaryTitle);
-      // Format with title if available
-      return summaryTitle 
-        ? `**${summaryTitle}**\n\n${summaryText}`
-        : summaryText;
+    // Log the shape in dev so we can see what arrived — remove before production
+    if (__DEV__) {
+      console.log('[ElevenLabs] conversation status:', data.status);
+      console.log('[ElevenLabs] analysis keys:', Object.keys(data.analysis ?? {}));
+      console.log('[ElevenLabs] transcript_summary:', data.analysis?.transcript_summary?.slice(0, 80));
     }
 
-    // Fallback if no summary but transcript available
-    if (data.transcript && data.transcript.length > 0) {
-      const messageCount = data.transcript.length;
-      const userMessages = data.transcript.filter(t => t.role === 'user').length;
-      return `Your trip companion conversation included ${messageCount} messages (${userMessages} from you). The conversation summary is still being processed by ElevenLabs.`;
+    // Correct fields per ElevenLabs response structure
+    const title   = data.analysis?.call_summary_title ?? '';
+    const summary = data.analysis?.transcript_summary ?? '';
+
+    if (summary) {
+      return { status: 'ready', title: title || 'Trip Summary', text: summary };
     }
 
-    return 'Conversation summary is still being processed. Please try again in a few moments.';
-  } catch (error) {
-    console.error('[ElevenLabs] Error fetching summary:', error);
-    return 'Could not fetch conversation summary. Check your connection.';
+    // API responded but analysis not ready yet — caller should offer retry
+    const hint = data.status
+      ? `Conversation is "${data.status}". Analysis is still being prepared.`
+      : 'Summary is still being prepared by ElevenLabs.';
+    return { status: 'pending', hint };
+
+  } catch (err) {
+    console.error('[ElevenLabs] fetch error:', err);
+    return { status: 'error', msg: 'Network error. Check your connection and try again.' };
   }
 }
 
 export default function TripCompleteScreen() {
   const router = useRouter();
   const {
-    tripId,
     completedAt,
     actualDurationSeconds,
-    actualDurationMinutes,
     finalDistanceFromRouteMeters,
-    finalDeviationLevel,
     destination,
-    routeName,
     wasEscalated,
     elevenLabsConversationId,
   } = useLocalSearchParams<{
-    tripId: string;
     completedAt: string;
     actualDurationSeconds: string;
-    actualDurationMinutes: string;
     finalDistanceFromRouteMeters: string;
-    finalDeviationLevel: DeviationLevel;
     destination: string;
-    routeName: string;
     wasEscalated?: string;
     elevenLabsConversationId?: string;
   }>();
 
-  const [feedback, setFeedback]         = useState<string | null>(null);
-  const [loadingFeedback, setLoading]   = useState(false);
+  const durationSec = parseInt(actualDurationSeconds ?? '0', 10);
+  const finalDistM  = parseInt(finalDistanceFromRouteMeters ?? '0', 10);
+  const isEscalated = wasEscalated === 'true';
 
-  const durationSec  = parseInt(actualDurationSeconds ?? '0', 10);
-  const durationMin  = parseInt(actualDurationMinutes ?? '0', 10);
-  const finalDistM   = parseInt(finalDistanceFromRouteMeters ?? '0', 10);
-  const deviationLvl = (finalDeviationLevel ?? 'none') as DeviationLevel;
-  const isEscalated  = wasEscalated === 'true';
+  type SummaryState =
+    | { tag: 'idle' }
+    | { tag: 'loading' }
+    | { tag: 'ready';   title: string; text: string }
+    | { tag: 'pending'; hint: string }
+    | { tag: 'error';   msg: string };
+
+  const [summary, setSummary] = useState<SummaryState>({ tag: 'idle' });
+
+  const handleFetchSummary = async () => {
+    setSummary({ tag: 'loading' });
+    const result = await fetchConversationSummary(elevenLabsConversationId ?? '');
+    if (result.status === 'ready')   setSummary({ tag: 'ready',   title: result.title, text: result.text });
+    else if (result.status === 'pending') setSummary({ tag: 'pending', hint: result.hint });
+    else                             setSummary({ tag: 'error',   msg: result.msg });
+  };
 
   const arrivedAt = completedAt
     ? new Date(completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : '';
 
-  const handleGetFeedback = async () => {
-    setLoading(true);
-    const result = await fetchElevenLabsConversationSummary(elevenLabsConversationId ?? '');
-    setFeedback(result);
-    setLoading(false);
-  };
-
   return (
     <SafeAreaView style={styles.container}>
+
+      {/* ── Top app bar ───────────────────────────────────────────── */}
+      <View style={styles.appBar}>
+        <Text style={styles.appBarTitle}>Trip Summary</Text>
+      </View>
+
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
         {/* ── Hero ──────────────────────────────────────────────────── */}
         <View style={styles.hero}>
-          <Text style={styles.heroEmoji}>{isEscalated ? '🚨' : '🎉'}</Text>
+          {/* Icon in soft colored circle */}
+          <View style={[styles.heroIconWrap, isEscalated && styles.heroIconWrapAlert]}>
+            <Text style={styles.heroEmoji}>{isEscalated ? '🚨' : '✅'}</Text>
+          </View>
+
+          {/* Title */}
           <Text style={styles.heroTitle}>
             {isEscalated ? 'Alert was raised' : 'You arrived safely!'}
           </Text>
+
+          {/* Destination */}
           <Text style={styles.heroDestination}>{destination}</Text>
+
+          {/* Arrival time pill */}
           {arrivedAt ? (
-            <Text style={[styles.heroTime, isEscalated && styles.heroTimeAlert]}>
-              {isEscalated ? 'Trip ended at' : 'Arrived at'} {arrivedAt}
-            </Text>
+            <View style={[styles.heroTimePill, isEscalated && styles.heroTimePillAlert]}>
+              <Text style={[styles.heroTime, isEscalated && styles.heroTimeAlert]}>
+                {isEscalated ? 'Trip ended at' : 'Arrived at'} {arrivedAt}
+              </Text>
+            </View>
           ) : null}
+
+          {/* Escalated notice */}
           {isEscalated ? (
             <Text style={styles.heroAlert}>
               Your trusted contact was notified with your location
@@ -145,89 +153,101 @@ export default function TripCompleteScreen() {
           ) : null}
         </View>
 
-        {/* ── Summary cards ─────────────────────────────────────────── */}
-        <View style={styles.cards}>
-
-          <View style={styles.card}>
-            <Text style={styles.cardIcon}>⏱</Text>
-            <View style={styles.cardBody}>
-              <Text style={styles.cardLabel}>Trip Duration</Text>
-              <Text style={styles.cardValue}>{formatDuration(durationSec)}</Text>
-              <Text style={styles.cardSub}>{durationMin} min total</Text>
+        {/* ── Summary card ──────────────────────────────────────────── */}
+        <View style={styles.summaryCard}>
+          {/* Top row: label + mode pill */}
+          <View style={styles.cardTopRow}>
+            <Text style={styles.cardRouteLabel}>Verified Route</Text>
+            <View style={styles.cardModePill}>
+              <Text style={styles.cardModeText}>Safe Route</Text>
             </View>
           </View>
 
-          <View style={styles.card}>
-            <Text style={styles.cardIcon}>📍</Text>
-            <View style={styles.cardBody}>
-              <Text style={styles.cardLabel}>Route Accuracy</Text>
-              <Text style={styles.cardValue}>{deviationLevelLabel(deviationLvl)}</Text>
-              <Text style={styles.cardSub}>
-                Final deviation: {finalDistM}m from route
-              </Text>
+          <View style={styles.cardDivider} />
+
+          {/* Stats row: duration + distance */}
+          <View style={styles.cardStatsRow}>
+            <View style={styles.cardStat}>
+              <Text style={styles.cardStatValue}>{formatDuration(durationSec)}</Text>
+              <Text style={styles.cardStatLabel}>Duration</Text>
+            </View>
+            <View style={styles.cardStatDivider} />
+            <View style={styles.cardStat}>
+              <Text style={styles.cardStatValue}>{finalDistM} m</Text>
+              <Text style={styles.cardStatLabel}>Distance</Text>
             </View>
           </View>
 
-          {routeName ? (
-            <View style={styles.card}>
-              <Text style={styles.cardIcon}>🗺</Text>
-              <View style={styles.cardBody}>
-                <Text style={styles.cardLabel}>Route Taken</Text>
-                <Text style={styles.cardValue}>{routeName}</Text>
-              </View>
-            </View>
-          ) : null}
+          <View style={styles.cardDivider} />
 
-          <View style={[styles.card, styles.cardDebug]}>
-            <Text style={styles.cardIcon}>🔑</Text>
-            <View style={styles.cardBody}>
-              <Text style={styles.cardLabel}>Trip ID (for testing)</Text>
-              <Text style={styles.cardValueMono}>{tripId}</Text>
-            </View>
+          {/* Destination row */}
+          <View style={styles.cardDestRow}>
+            <Text style={styles.cardDestLabel}>To</Text>
+            <Text style={styles.cardDestValue} numberOfLines={1}>{destination}</Text>
           </View>
-
         </View>
 
-        {/* ── AI Feedback ───────────────────────────────────────────── */}
-        <View style={styles.feedbackSection}>
-          <Text style={styles.feedbackHeading}>Trip Feedback</Text>
-          <Text style={styles.feedbackSub}>
-            Get a summary of your trip companion conversation from ElevenLabs.
-          </Text>
+        {/* ── AI message ────────────────────────────────────────────── */}
+        <View style={styles.aiCard}>
+          <View style={styles.aiCardAvatar}>
+            <Text style={styles.aiCardAvatarText}>AI</Text>
+          </View>
+          <View style={styles.aiCardBody}>
+            <Text style={styles.aiCardName}>SafeWalk AI</Text>
+            <Text style={styles.aiCardText}>
+              {isEscalated
+                ? 'Your trusted contact was notified. Please check in with them when you can.'
+                : `Great trip to ${destination || 'your destination'}! You stayed safe throughout the journey.`}
+            </Text>
+          </View>
+        </View>
 
-          {!feedback && !loadingFeedback && (
-            <TouchableOpacity style={styles.feedbackButton} onPress={() => void handleGetFeedback()}>
-              <Text style={styles.feedbackButtonText}>✨ Generate Trip Feedback</Text>
+        {/* ── AI summary (on-demand) ────────────────────────────────── */}
+        {elevenLabsConversationId ? (
+          summary.tag === 'idle' ? (
+            <TouchableOpacity style={styles.summaryBtn} onPress={() => void handleFetchSummary()} activeOpacity={0.7}>
+              <Text style={styles.summaryBtnText}>✦  View AI Trip Summary</Text>
             </TouchableOpacity>
-          )}
 
-          {loadingFeedback && (
-            <View style={styles.feedbackLoading}>
-              <ActivityIndicator color={colors.primary} />
-              <Text style={styles.feedbackLoadingText}>Generating your trip summary…</Text>
+          ) : summary.tag === 'loading' ? (
+            <View style={styles.summaryLoading}>
+              <ActivityIndicator size="small" color="#4F46E5" />
+              <Text style={styles.summaryLoadingText}>Generating summary…</Text>
             </View>
-          )}
 
-          {feedback && (
-            <View style={styles.feedbackCard}>
-              <Text style={styles.feedbackCardTitle}>🤖 Your Trip Summary</Text>
-              <Text style={styles.feedbackCardText}>{feedback}</Text>
-              <TouchableOpacity
-                style={styles.feedbackRetry}
-                onPress={() => { setFeedback(null); void handleGetFeedback(); }}
-              >
-                <Text style={styles.feedbackRetryText}>Regenerate</Text>
+          ) : summary.tag === 'ready' ? (
+            <View style={styles.aiSummaryCard}>
+              <View style={styles.aiSummaryHeader}>
+                <View style={styles.aiSummaryDot} />
+                <Text style={styles.aiSummaryLabel}>{summary.title}</Text>
+              </View>
+              <Text style={styles.aiSummaryText}>{summary.text}</Text>
+            </View>
+
+          ) : summary.tag === 'pending' ? (
+            <View style={styles.summaryPending}>
+              <Text style={styles.summaryPendingText}>{summary.hint}</Text>
+              <TouchableOpacity style={styles.summaryRetryBtn} onPress={() => void handleFetchSummary()} activeOpacity={0.7}>
+                <Text style={styles.summaryRetryText}>Try again</Text>
               </TouchableOpacity>
             </View>
-          )}
-        </View>
 
-        {/* ── Actions ───────────────────────────────────────────────── */}
+          ) : (
+            <View style={styles.summaryPending}>
+              <Text style={styles.summaryPendingText}>{summary.msg}</Text>
+              <TouchableOpacity style={styles.summaryRetryBtn} onPress={() => void handleFetchSummary()} activeOpacity={0.7}>
+                <Text style={styles.summaryRetryText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          )
+        ) : null}
+
+        {/* ── Done ──────────────────────────────────────────────────── */}
         <TouchableOpacity
-          style={styles.homeButton}
+          style={styles.doneButton}
           onPress={() => router.replace('/')}
         >
-          <Text style={styles.homeButtonText}>Back to Home</Text>
+          <Text style={styles.doneButtonText}>Done</Text>
         </TouchableOpacity>
 
       </ScrollView>
@@ -236,92 +256,344 @@ export default function TripCompleteScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scroll:    { paddingHorizontal: 24, paddingTop: 40, paddingBottom: 48 },
+  container: { flex: 1, backgroundColor: colors.gray[50] },
 
-  hero: { alignItems: 'center', marginBottom: 40, gap: 8 },
-  heroEmoji:       { fontSize: 72 },
-  heroTitle:       { fontSize: 30, fontWeight: '800', color: colors.text, marginTop: 8 },
-  heroDestination: { fontSize: 16, color: colors.textLight, textAlign: 'center', paddingHorizontal: 32 },
-  heroTime:        { fontSize: 14, color: colors.green, fontWeight: '600' },
-  heroTimeAlert:   { color: colors.red },
-  heroAlert:       { fontSize: 14, color: colors.red, fontWeight: '600', textAlign: 'center', paddingHorizontal: 32, marginTop: 4 },
+  // ── App bar ──────────────────────────────────────────────────────
+  appBar: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  appBarTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text,
+  },
 
-  cards: { gap: 12, marginBottom: 24 },
-  card: {
+  // ── Scroll ───────────────────────────────────────────────────────
+  scroll: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 48 },
+
+  // ── Hero ─────────────────────────────────────────────────────────
+  hero: {
+    alignItems: 'center',
+    paddingTop: 36,
+    paddingBottom: 8,
+    marginBottom: 20,
+  },
+  heroIconWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: 'rgba(16,185,129,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  heroIconWrapAlert: {
+    backgroundColor: 'rgba(239,68,68,0.10)',
+  },
+  heroEmoji: {
+    fontSize: 42,
+  },
+  heroTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: colors.text,
+    textAlign: 'center',
+    letterSpacing: -0.5,
+    marginBottom: 8,
+  },
+  heroDestination: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: colors.textLight,
+    textAlign: 'center',
+    paddingHorizontal: 32,
+    marginBottom: 12,
+  },
+  heroTimePill: {
+    backgroundColor: 'rgba(16,185,129,0.10)',
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  heroTimePillAlert: {
+    backgroundColor: 'rgba(239,68,68,0.10)',
+  },
+  heroTime: {
+    fontSize: 13,
+    color: '#10B981',
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
+  heroTimeAlert: {
+    color: colors.red,
+  },
+  heroAlert: {
+    fontSize: 14,
+    color: colors.red,
+    fontWeight: '600',
+    textAlign: 'center',
+    paddingHorizontal: 32,
+    marginTop: 12,
+  },
+
+  // ── Summary card ─────────────────────────────────────────────────
+  summaryCard: {
+    backgroundColor: colors.white,
+    borderRadius: 20,
+    marginBottom: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.gray[200],
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  cardTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
-    borderRadius: 14,
-    padding: 18,
-    gap: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  cardRouteLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textLight,
+  },
+  cardModePill: {
+    backgroundColor: '#EEF2FF',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  cardModeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#4F46E5',
+    letterSpacing: 0.3,
+  },
+  cardDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+  },
+  cardStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  cardStat: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+  },
+  cardStatValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
+    letterSpacing: -0.3,
+  },
+  cardStatLabel: {
+    fontSize: 11,
+    color: colors.textLight,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  cardStatDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: colors.border,
+    marginHorizontal: 8,
+  },
+  cardDestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    gap: 10,
+  },
+  cardDestLabel: {
+    fontSize: 12,
+    color: colors.textLight,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  cardDestValue: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
+
+  // ── AI message card ───────────────────────────────────────────────
+  aiCard: {
+    backgroundColor: '#F5F6FF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 28,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(79,70,229,0.18)',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 14,
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  aiCardAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#4F46E5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 2,
   },
-  cardDebug:     { borderColor: colors.gray[200], backgroundColor: colors.gray[50] },
-  cardIcon:      { fontSize: 28 },
-  cardBody:      { flex: 1, gap: 2 },
-  cardLabel:     { fontSize: 12, color: colors.textLight, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  cardValue:     { fontSize: 18, fontWeight: '700', color: colors.text },
-  cardValueMono: { fontSize: 11, fontFamily: 'monospace', color: colors.gray[600], lineHeight: 18 },
-  cardSub:       { fontSize: 12, color: colors.textLight, marginTop: 2 },
+  aiCardAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  aiCardBody: {
+    flex: 1,
+    gap: 6,
+  },
+  aiCardName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#4F46E5',
+  },
+  aiCardText: {
+    fontSize: 14,
+    color: colors.gray[600],
+    lineHeight: 21,
+  },
 
-  feedbackSection: {
-    marginBottom: 24,
+  // ── AI summary (on-demand) ───────────────────────────────────────
+  summaryBtn: {
+    borderWidth: 1,
+    borderColor: 'rgba(79,70,229,0.35)',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginBottom: 14,
+    backgroundColor: 'rgba(79,70,229,0.04)',
+  },
+  summaryBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4F46E5',
+    letterSpacing: 0.2,
+  },
+  summaryLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    marginBottom: 14,
+  },
+  summaryLoadingText: {
+    fontSize: 14,
+    color: colors.textLight,
+    fontWeight: '500',
+  },
+  aiSummaryCard: {
     backgroundColor: colors.white,
     borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
+    padding: 18,
+    marginBottom: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.gray[200],
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
     elevation: 2,
     gap: 12,
   },
-  feedbackHeading: { fontSize: 17, fontWeight: '700', color: colors.text },
-  feedbackSub:     { fontSize: 13, color: colors.textLight, lineHeight: 18 },
-
-  feedbackButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-    paddingVertical: 14,
+  aiSummaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  aiSummaryDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#4F46E5',
+  },
+  aiSummaryLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4F46E5',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  aiSummaryText: {
+    fontSize: 14,
+    color: colors.gray[700],
+    lineHeight: 22,
+  },
+  summaryPending: {
+    backgroundColor: colors.gray[100],
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 14,
+    gap: 10,
     alignItems: 'center',
   },
-  feedbackButtonText: { color: colors.white, fontSize: 15, fontWeight: '700' },
-
-  feedbackLoading: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
-  feedbackLoadingText: { fontSize: 14, color: colors.textLight },
-
-  feedbackCard: {
-    backgroundColor: '#F0F7FF',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    gap: 10,
+  summaryPendingText: {
+    fontSize: 13,
+    color: colors.textLight,
+    textAlign: 'center',
+    lineHeight: 19,
   },
-  feedbackCardTitle: { fontSize: 14, fontWeight: '700', color: colors.primary },
-  feedbackCardText:  { fontSize: 14, color: colors.text, lineHeight: 22 },
-  feedbackRetry: { alignSelf: 'flex-end' },
-  feedbackRetryText: { fontSize: 13, color: colors.primary, fontWeight: '600' },
+  summaryRetryBtn: {
+    borderWidth: 1,
+    borderColor: colors.gray[300],
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  summaryRetryText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.gray[700],
+  },
 
-  homeButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 14,
+  // ── Done button ──────────────────────────────────────────────────
+  doneButton: {
+    backgroundColor: '#111827',
+    borderRadius: 16,
     paddingVertical: 18,
     alignItems: 'center',
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 4,
   },
-  homeButtonText: { color: colors.white, fontSize: 17, fontWeight: '700' },
+  doneButtonText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
 });

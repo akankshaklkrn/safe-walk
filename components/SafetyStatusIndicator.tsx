@@ -1,57 +1,74 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { SafetyStatus } from '../types';
-import { colors } from '../constants/colors';
 
 interface SafetyStatusIndicatorProps {
   status: SafetyStatus;
 }
 
-const statusConfig = {
+const STATUS_CONFIG: Record<SafetyStatus, {
+  dot: string;
+  label: string;
+  textColor: string;
+  bgColor: string;
+  borderColor: string;
+}> = {
   safe: {
-    icon: '🟢',
+    dot: '#10B981',
     label: 'Safe',
-    color: colors.green,
-    bgColor: '#ECFDF5',
+    textColor: '#065F46',
+    bgColor: 'rgba(236,253,245,0.92)',
+    borderColor: 'rgba(16,185,129,0.30)',
   },
   uncertain: {
-    icon: '🟡',
+    dot: '#F59E0B',
     label: 'Uncertain',
-    color: colors.yellow,
-    bgColor: '#FFFBEB',
+    textColor: '#92400E',
+    bgColor: 'rgba(255,251,235,0.92)',
+    borderColor: 'rgba(245,158,11,0.30)',
   },
   risk: {
-    icon: '🔴',
-    label: 'Risk Detected',
-    color: colors.red,
-    bgColor: '#FEF2F2',
+    dot: '#EF4444',
+    label: 'Risk',
+    textColor: '#991B1B',
+    bgColor: 'rgba(254,242,242,0.92)',
+    borderColor: 'rgba(239,68,68,0.35)',
   },
 };
 
 export default function SafetyStatusIndicator({ status }: SafetyStatusIndicatorProps) {
-  const config = statusConfig[status];
+  const cfg = STATUS_CONFIG[status];
 
   return (
-    <View style={[styles.container, { backgroundColor: config.bgColor }]}>
-      <Text style={styles.icon}>{config.icon}</Text>
-      <Text style={[styles.label, { color: config.color }]}>{config.label}</Text>
+    <View
+      style={[
+        styles.pill,
+        { backgroundColor: cfg.bgColor, borderColor: cfg.borderColor },
+      ]}
+    >
+      <View style={[styles.dot, { backgroundColor: cfg.dot }]} />
+      <Text style={[styles.label, { color: cfg.textColor }]}>{cfg.label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 20,
-    gap: 8,
+    borderWidth: 1,
   },
-  icon: {
-    fontSize: 16,
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
   label: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
 });

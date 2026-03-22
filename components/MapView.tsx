@@ -103,8 +103,6 @@ export default function MapView({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
   },
   placeholder: {
     backgroundColor: colors.gray[100],

@@ -49,44 +49,62 @@ export default function SignupScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.brandBlock}>
-          <Image
-            source={require('../assets/safewalk.png')}
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Sign up once, then keep your contacts and safe word ready for every trip.</Text>
+          <View style={styles.logoWrap}>
+            <Image
+              source={require('../assets/safewalk.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
+          </View>
+          <View style={styles.brandText}>
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>Sign up once, then keep your contacts and safe word ready for every trip.</Text>
+          </View>
         </View>
 
         <View style={styles.formCard}>
-          <Text style={styles.label}>Name</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="Your name"
-          />
 
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@example.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Name</Text>
+            <TextInput
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+              placeholder="Your name"
+              placeholderTextColor={colors.gray[400]}
+            />
+          </View>
 
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.input}
-            value={password}
-            onChangeText={setPassword}
-            placeholder="At least 6 characters"
-            secureTextEntry
-          />
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@example.com"
+              placeholderTextColor={colors.gray[400]}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
 
-          {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Password</Text>
+            <TextInput
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="At least 6 characters"
+              placeholderTextColor={colors.gray[400]}
+              secureTextEntry
+            />
+          </View>
+
+          {authError ? (
+            <View style={styles.errorRow}>
+              <Text style={styles.errorText}>{authError}</Text>
+            </View>
+          ) : null}
 
           <TouchableOpacity
             style={[
@@ -96,12 +114,18 @@ export default function SignupScreen() {
             onPress={() => void handleSignup()}
             disabled={!name || !email || !password || submitting || loading}
           >
-            {submitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryButtonText}>Sign Up</Text>}
+            {submitting
+              ? <ActivityIndicator color={colors.white} />
+              : <Text style={styles.primaryButtonText}>Sign Up</Text>}
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => router.replace('/login')}>
-            <Text style={styles.switchText}>Already have an account? Log in</Text>
+          <TouchableOpacity onPress={() => router.replace('/login')} activeOpacity={0.5}>
+            <Text style={styles.switchText}>
+              Already have an account?{' '}
+              <Text style={styles.switchLink}>Log in</Text>
+            </Text>
           </TouchableOpacity>
+
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -109,46 +133,80 @@ export default function SignupScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF7ED' },
-  content: { flexGrow: 1, paddingHorizontal: 24, justifyContent: 'center', gap: 24, paddingVertical: 32 },
-  brandBlock: { gap: 10 },
-  logoImage: {
-    width: 132,
-    height: 132,
+  container: { flex: 1, backgroundColor: colors.gray[50] },
+  content: { flexGrow: 1, paddingHorizontal: 24, justifyContent: 'center', gap: 32, paddingVertical: 32 },
+  brandBlock: { alignItems: 'center', gap: 20 },
+  brandText: { alignItems: 'center', gap: 8, paddingHorizontal: 16 },
+  logoWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: 22,
+    backgroundColor: colors.gray[100],
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.gray[200],
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  title: { fontSize: 34, fontWeight: '800', color: colors.text, textAlign: 'center' },
-  subtitle: { fontSize: 15, color: colors.textLight, lineHeight: 22, textAlign: 'center' },
+  logoImage: {
+    width: 60,
+    height: 60,
+  },
+  title: { fontSize: 32, fontWeight: '800', color: colors.text, textAlign: 'center', letterSpacing: -0.5 },
+  subtitle: { fontSize: 14, color: colors.textLight, lineHeight: 20, textAlign: 'center' },
   formCard: {
     backgroundColor: colors.white,
     borderRadius: 20,
-    padding: 20,
-    gap: 12,
+    padding: 24,
+    gap: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.gray[200],
     shadowColor: colors.black,
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
-  label: { fontSize: 14, fontWeight: '700', color: colors.text },
+  fieldGroup: {
+    gap: 6,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.gray[600],
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
   input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    backgroundColor: colors.gray[50],
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.gray[300],
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
     fontSize: 16,
     color: colors.text,
   },
-  errorText: { color: colors.danger, fontSize: 14 },
+  errorRow: {
+    backgroundColor: 'rgba(231,76,60,0.07)',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  errorText: { color: colors.danger, fontSize: 13, fontWeight: '500' },
   primaryButton: {
-    marginTop: 8,
-    backgroundColor: colors.primary,
-    borderRadius: 14,
+    backgroundColor: '#111827',
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
+    paddingVertical: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  primaryButtonText: { color: colors.white, fontSize: 16, fontWeight: '700' },
-  switchText: { color: colors.primary, textAlign: 'center', fontWeight: '700', marginTop: 4 },
-  buttonDisabled: { opacity: 0.55 },
+  primaryButtonText: { color: colors.white, fontSize: 17, fontWeight: '700', letterSpacing: 0.3 },
+  switchText: { color: colors.gray[400], textAlign: 'center', fontSize: 14, fontWeight: '400' },
+  switchLink: { color: colors.gray[600], fontWeight: '500', textDecorationLine: 'underline' },
+  buttonDisabled: { backgroundColor: colors.gray[300], opacity: 0.7, shadowOpacity: 0 },
 });

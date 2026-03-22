@@ -6,9 +6,8 @@ import {
   StyleSheet,
   Alert,
   TextInput,
-  ScrollView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { Audio } from 'expo-av';
@@ -561,107 +560,143 @@ export default function ActiveTripScreen() {
     setVoiceStatus(granted ? 'Microphone permission granted' : 'Microphone permission denied');
   };
 
+  const insets = useSafeAreaInsets();
   const isConnected = conversation.status === 'connected';
   const isConnecting = conversation.status === 'connecting';
   const etaLabel = liveEtaMinutes !== null ? formatEta(liveEtaMinutes) : '— min';
   // Calculate remaining distance: initial distance * (1 - progress as decimal)
   const remainingDistanceMeters = Math.round(initialDistanceMeters * (1 - liveProgressPercent / 100));
   const distanceLabel = formatDistance(remainingDistanceMeters);
+  const arrivalTime =
+    liveEtaMinutes !== null
+      ? new Date(Date.now() + liveEtaMinutes * 60_000).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        })
+      : '—';
 
   return (
-    <SafeAreaView style={[styles.container, escalated && styles.containerEscalated]}>
+    <View style={styles.root}>
 
-      {/* ── Compact header: status + SOS ──────────────────────────── */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <SafetyStatusIndicator status={safetyStatus} />
-          {statusReason ? (
-            <Text style={styles.statusReason} numberOfLines={1}>{statusReason}</Text>
-          ) : null}
-        </View>
-        <TouchableOpacity
-          style={styles.sosButton}
-          activeOpacity={0.8}
-          onPress={() => void handleSOS()}
-        >
-          <Text style={styles.sosButtonLabel}>SOS</Text>
-          <Text style={styles.sosButtonSub}>Emergency</Text>
-        </TouchableOpacity>
+      {/* ── Full-screen map ───────────────────────────────────────── */}
+      <View style={StyleSheet.absoluteFillObject}>
+        <MapView
+          userLocation={currentLocation}
+          destination={
+            endLat && endLng
+              ? { lat: parseFloat(endLat), lng: parseFloat(endLng) }
+              : null
+          }
+          routePolyline={typeof polyline === 'string' ? polyline : ''}
+          safetyStatus={safetyStatus}
+        />
       </View>
 
-      {/* ── Scrollable content ────────────────────────────────────── */}
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+      {/* ── Safety status pill — top-left ────────────────────────── */}
+      <View style={[styles.statusPill, { top: insets.top + 12 }]}>
+        <SafetyStatusIndicator status={safetyStatus} />
+      </View>
+
+      {/* ── Route label pill — centered top of map ───────────────── */}
+      <View style={[styles.routeLabel, { top: insets.top + 12 }]}>
+        <View style={styles.routeLabelDot} />
+        <Text style={styles.routeLabelText}>SAFE PATH</Text>
+      </View>
+
+      {/* ── SOS button — straddling map / panel boundary ─────────── */}
+      <TouchableOpacity
+        style={styles.sosFab}
+        activeOpacity={0.75}
+        onPress={() => void handleSOS()}
       >
-        {/* Map */}
-        <View style={styles.mapContainer}>
-          <MapView
-            userLocation={currentLocation}
-            destination={
-              endLat && endLng
-                ? { lat: parseFloat(endLat), lng: parseFloat(endLng) }
-                : null
-            }
-            routePolyline={typeof polyline === 'string' ? polyline : ''}
-            safetyStatus={safetyStatus}
-          />
+        <Text style={styles.sosFabLabel}>SOS</Text>
+        <Text style={styles.sosFabSub}>EMERGENCY</Text>
+      </TouchableOpacity>
+
+      {/* ── Bottom sheet ─────────────────────────────────────────── */}
+      <View style={[styles.bottomSheet, { paddingBottom: insets.bottom || 16 }]}>
+        <View style={styles.dragHandle} />
+
+        {/* ── Panel header ─── avatar · name · status · menu ─────── */}
+        <View style={styles.panelHeader}>
+          <View style={styles.avatarWrap}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>AI</Text>
+            </View>
+            <View style={styles.avatarOnlineDot} />
+          </View>
+
+          <View style={styles.headerInfo}>
+            <Text style={styles.headerName}>SafeBot AI</Text>
+            <View style={styles.headerStatus}>
+              <View style={styles.statusDot} />
+              <Text style={styles.statusLabel}>WATCHING OVER YOU</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.menuBtn}
+            activeOpacity={0.6}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.menuBtnText}>⋮</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* ETA + Distance inline below map */}
-        <View style={styles.etaRow}>
-          <View style={styles.etaChip}>
-            <Text style={styles.etaChipIcon}>⏱</Text>
-            <Text style={styles.etaChipLabel}>ETA</Text>
-            <Text style={styles.etaChipValue}>{etaLabel}</Text>
+        {/* ── Metrics row ─── arrival · distance ─────────────────── */}
+        <View style={styles.metricsRow}>
+          <View style={styles.metric}>
+            <Text style={styles.metricValue}>{arrivalTime}</Text>
+            <Text style={styles.metricLabel}>Arrival</Text>
           </View>
-          <View style={styles.etaDivider} />
-          <View style={styles.etaChip}>
-            <Text style={styles.etaChipIcon}>📍</Text>
-            <Text style={styles.etaChipLabel}>Distance</Text>
-            <Text style={styles.etaChipValue}>{distanceLabel}</Text>
+          <View style={styles.metricDivider} />
+          <View style={styles.metric}>
+            <Text style={styles.metricValue}>{distanceLabel}</Text>
+            <Text style={styles.metricLabel}>Distance</Text>
           </View>
         </View>
 
-        {/* AI Companion */}
-        <View style={styles.companionContainer}>
+        {/* ── AI messages ─────────────────────────────────────────── */}
+        <View style={styles.messagesArea}>
           <AICompanionPanel messages={aiMessages} />
         </View>
 
-        {/* Voice / controls */}
-        <View style={styles.voiceContainer}>
-          <Text style={styles.inputLabel}>Trip Companion</Text>
-          <Text style={styles.voiceStatus}>{voiceStatus}</Text>
-          {micPermissionGranted !== true && (
-            <TouchableOpacity
-              style={styles.permissionButton}
-              onPress={() => void handleRequestMicPermission()}
-            >
-              <Text style={styles.permissionButtonText}>Enable Microphone</Text>
-            </TouchableOpacity>
-          )}
-          <View style={styles.voiceButtonRow}>
-            <TouchableOpacity
-              style={[
-                styles.voiceControlButton,
-                (!isConnected || micPermissionGranted !== true) && styles.voiceControlButtonDisabled,
-              ]}
-              onPress={handleMicToggle}
-              disabled={!isConnected || micPermissionGranted !== true}
-            >
-              <Text style={styles.voiceControlText}>Mute / Unmute Mic</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.voiceActionButton, isConnecting && styles.voiceControlButtonDisabled]}
-              onPress={() => void handleEndTrip()}
-              disabled={isConnecting}
-            >
-              <Text style={styles.voiceActionButtonText}>End Trip</Text>
-            </TouchableOpacity>
-          </View>
+        {/* Mic permission (conditional) */}
+        {micPermissionGranted !== true && (
+          <TouchableOpacity
+            style={styles.permissionButton}
+            onPress={() => void handleRequestMicPermission()}
+          >
+            <Text style={styles.permissionButtonText}>Enable Microphone</Text>
+          </TouchableOpacity>
+        )}
 
+        {/* ── Actions ─────────────────────────────────────────────── */}
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              (!isConnected || micPermissionGranted !== true) && styles.actionButtonDisabled,
+            ]}
+            onPress={handleMicToggle}
+            disabled={!isConnected || micPermissionGranted !== true}
+          >
+            <Text style={styles.actionButtonText}>
+              {isMicMuted ? 'Unmute Mic' : 'Mute Mic'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.endTripButton, isConnecting && styles.actionButtonDisabled]}
+            onPress={() => void handleEndTrip()}
+            disabled={isConnecting}
+          >
+            <Text style={styles.endTripButtonText}>End Trip</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Text input ──────────────────────────────────────────── */}
+        <View style={styles.inputRow}>
           <TextInput
             style={styles.messageInput}
             placeholder="Message your companion…"
@@ -671,23 +706,17 @@ export default function ActiveTripScreen() {
             autoCapitalize="sentences"
             autoCorrect={false}
           />
-
-          <View style={styles.monitorRow}>
-            <Text style={styles.monitorText}>
-              {configuredSafeWord ? 'Safe word armed.' : 'No safe word set.'}
-            </Text>
-            <TouchableOpacity
-              style={[styles.sendButton, !isConnected && styles.voiceControlButtonDisabled]}
-              onPress={handleSendMessage}
-              disabled={!isConnected}
-            >
-              <Text style={styles.sendButtonText}>Send</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={[styles.sendButton, !isConnected && styles.actionButtonDisabled]}
+            onPress={handleSendMessage}
+            disabled={!isConnected}
+          >
+            <Text style={styles.sendButtonText}>Send</Text>
+          </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
 
-      {/* ── Banners (absolute overlays) ───────────────────────────── */}
+      {/* ── Absolute overlays ─────────────────────────────────────── */}
       {escalated && (
         <View style={styles.escalationBanner}>
           <Text style={styles.escalationText}>🚨 Alert sent to your trusted contact</Text>
@@ -705,7 +734,7 @@ export default function ActiveTripScreen() {
         onConfirmSafe={() => setShowSOSConfirmation(false)}
         onEmergencyContact={() => setShowSOSConfirmation(false)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -723,215 +752,298 @@ function deviationBadgeStyle(level: DeviationLevel) {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#000',
   },
-  containerEscalated: {
-    backgroundColor: '#FFF5F5',
+
+  // ── Safety status pill ───────────────────────────────────────────
+  statusPill: {
+    position: 'absolute',
+    left: 16,
+    zIndex: 10,
   },
-  header: {
+
+  // ── Route label pill ─────────────────────────────────────────────
+  routeLabel: {
+    position: 'absolute',
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.white,
+    gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.42)',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    zIndex: 10,
   },
-  headerLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+  routeLabelDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
   },
-  statusReason: {
-    fontSize: 12,
-    color: colors.textLight,
-    fontStyle: 'italic',
-    flexShrink: 1,
+  routeLabelText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1.2,
   },
-  sosButton: {
-    backgroundColor: '#EF4444',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+
+  // ── SOS button — circular, pinned at map/panel boundary ─────────
+  sosFab: {
+    position: 'absolute',
+    right: 20,
+    bottom: '58%',
+    transform: [{ translateY: 36 }],
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#DC2626',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
-    elevation: 6,
-    marginLeft: 12,
-    minWidth: 64,
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
+    elevation: 12,
+    zIndex: 30,
   },
-  sosButtonLabel: {
+  sosFabLabel: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: 1,
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 1.5,
   },
-  sosButtonSub: {
-    color: '#FECACA',
-    fontSize: 9,
-    fontWeight: '600',
-    letterSpacing: 0.5,
+  sosFabSub: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 8,
+    fontWeight: '700',
+    letterSpacing: 0.8,
     marginTop: 1,
   },
-  scroll: {
-    flex: 1,
+
+  // ── Bottom sheet ─────────────────────────────────────────────────
+  bottomSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '58%',
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 16,
   },
-  scrollContent: {
-    paddingBottom: 16,
+  dragHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 10,
   },
-  mapContainer: {
-    height: 220,
-    marginHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 0,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  etaRow: {
+
+  // ── Panel header ─────────────────────────────────────────────────
+  panelHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 10,
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
-  etaChip: {
+  avatarWrap: {
+    position: 'relative',
+    marginRight: 12,
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#4F46E5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  avatarOnlineDot: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#10B981',
+    borderWidth: 2,
+    borderColor: colors.white,
+  },
+  headerInfo: {
     flex: 1,
+  },
+  headerName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 2,
+  },
+  headerStatus: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  etaChipIcon: { fontSize: 22, marginBottom: 2 },
-  etaChipLabel: { fontSize: 11, color: colors.textLight, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  etaChipValue: { fontSize: 20, fontWeight: '700', color: colors.text },
-  etaDivider: {
-    width: 1,
-    height: 44,
-    backgroundColor: colors.border,
-    marginHorizontal: 8,
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
   },
-  companionContainer: {
-    marginHorizontal: 16,
-    marginBottom: 10,
+  statusLabel: {
+    fontSize: 10,
+    color: '#10B981',
+    fontWeight: '600',
+    letterSpacing: 0.8,
   },
-  voiceContainer: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+  menuBtn: {
+    paddingLeft: 8,
   },
-  inputLabel: {
-    fontSize: 14,
+  menuBtnText: {
+    fontSize: 22,
+    color: colors.textLight,
+    fontWeight: '700',
+    lineHeight: 26,
+  },
+
+  // ── Metrics row ──────────────────────────────────────────────────
+  metricsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+    marginBottom: 8,
+  },
+  metric: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+  },
+  metricValue: {
+    fontSize: 16,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 10,
   },
-  voiceStatus: {
-    fontSize: 13,
+  metricLabel: {
+    fontSize: 10,
     color: colors.textLight,
-    lineHeight: 18,
-    marginBottom: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  voiceButtonRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
+  metricDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: colors.border,
   },
+
+  // ── Messages area ────────────────────────────────────────────────
+  messagesArea: {
+    flex: 1,
+    marginBottom: 6,
+  },
+
+  // ── Mic permission ───────────────────────────────────────────────
   permissionButton: {
     backgroundColor: colors.warning,
     borderRadius: 12,
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   permissionButtonText: {
     color: colors.white,
     fontSize: 14,
     fontWeight: '700',
   },
-  voiceControlButton: {
-    backgroundColor: colors.primary,
+
+  // ── Action buttons ───────────────────────────────────────────────
+  actionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  actionButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#4F46E5',
     borderRadius: 12,
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 12,
     alignItems: 'center',
   },
-  voiceActionButton: {
-    backgroundColor: colors.gray[700],
+  actionButtonText: {
+    color: '#4F46E5',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  endTripButton: {
+    backgroundColor: '#111827',
     borderRadius: 12,
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 12,
     alignItems: 'center',
   },
-  voiceControlButtonDisabled: {
+  endTripButtonText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  actionButtonDisabled: {
     opacity: 0.7,
   },
-  voiceControlText: {
-    color: colors.white,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  voiceActionButtonText: {
-    color: colors.white,
-    fontSize: 15,
-    fontWeight: '700',
+
+  // ── Text input ───────────────────────────────────────────────────
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   messageInput: {
+    flex: 1,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
+    paddingVertical: 10,
+    fontSize: 14,
     color: colors.text,
     backgroundColor: colors.gray[50],
   },
-  monitorRow: {
-    marginTop: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  monitorText: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.textLight,
-    lineHeight: 18,
-  },
   sendButton: {
     backgroundColor: colors.primary,
-    borderRadius: 10,
-    paddingHorizontal: 16,
+    borderRadius: 12,
+    paddingHorizontal: 14,
     paddingVertical: 10,
   },
   sendButtonText: {
     color: colors.white,
     fontSize: 14,
     fontWeight: '700',
+    letterSpacing: 0.3,
   },
+
+  // ── Absolute overlays ────────────────────────────────────────────
   escalationBanner: {
     position: 'absolute',
     top: 0,
@@ -940,6 +1052,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.red,
     paddingVertical: 10,
     alignItems: 'center',
+    zIndex: 20,
   },
   escalationText: {
     color: colors.white,
@@ -948,7 +1061,7 @@ const styles = StyleSheet.create({
   },
   rejoinBanner: {
     position: 'absolute',
-    bottom: 120,
+    bottom: '60%',
     left: 24,
     right: 24,
     backgroundColor: colors.green,
@@ -960,6 +1073,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 6,
+    zIndex: 10,
   },
   rejoinText: {
     color: colors.white,

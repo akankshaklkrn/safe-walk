@@ -6,99 +6,119 @@ interface AICompanionPanelProps {
   messages: AIMessage[];
 }
 
+const AI_INDIGO = '#4F46E5';
+
 export default function AICompanionPanel({ messages }: AICompanionPanelProps) {
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', { 
-      hour: 'numeric', 
-      minute: '2-digit',
-      hour12: true 
-    });
-  };
+  const formatTime = (date: Date) =>
+    date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerIcon}>🤖</Text>
-        <Text style={styles.headerText}>AI Companion</Text>
-      </View>
-      
-      <ScrollView 
-        style={styles.messageList}
-        contentContainerStyle={styles.messageListContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {messages.map((message) => (
-          <View
-            key={message.id}
-            style={[
-              styles.messageBubble,
-              message.sender === 'user' && styles.userMessageBubble,
-            ]}
-          >
-            <Text style={styles.messageText}>{message.text}</Text>
-            <Text style={styles.messageTime}>{formatTime(message.timestamp)}</Text>
+    <ScrollView
+      style={styles.list}
+      contentContainerStyle={styles.listContent}
+      showsVerticalScrollIndicator={false}
+    >
+      {messages.map((message) => {
+        const isAI = message.sender === 'ai';
+        return (
+          <View key={message.id} style={[styles.row, isAI ? styles.aiRow : styles.userRow]}>
+            {isAI && (
+              <View style={styles.miniAvatar}>
+                <Text style={styles.miniAvatarText}>AI</Text>
+              </View>
+            )}
+            <View style={styles.bubbleWrap}>
+              <View style={[styles.bubble, isAI ? styles.aiBubble : styles.userBubble]}>
+                <Text style={[styles.bubbleText, !isAI && styles.userBubbleText]}>
+                  {message.text}
+                </Text>
+              </View>
+              <Text style={[styles.timestamp, !isAI && styles.userTimestamp]}>
+                {formatTime(message.timestamp)}
+              </Text>
+            </View>
           </View>
-        ))}
-      </ScrollView>
-    </View>
+        );
+      })}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+  list: {
+    flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: colors.gray[50],
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    gap: 8,
-  },
-  headerIcon: {
-    fontSize: 20,
-  },
-  headerText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  messageList: {
-    maxHeight: 200,
-  },
-  messageListContent: {
-    padding: 16,
+  listContent: {
+    paddingVertical: 6,
     gap: 12,
   },
-  messageBubble: {
-    backgroundColor: '#F0F8FF',
-    borderRadius: 12,
-    padding: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
+
+  // ── Message rows ─────────────────────────────────────────────────
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
   },
-  userMessageBubble: {
-    backgroundColor: '#F3F4F6',
-    borderLeftColor: colors.textLight,
+  aiRow: {
+    justifyContent: 'flex-start',
+    gap: 8,
   },
-  messageText: {
-    fontSize: 15,
+  userRow: {
+    justifyContent: 'flex-end',
+  },
+
+  // ── Mini avatar (AI only) ────────────────────────────────────────
+  miniAvatar: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: AI_INDIGO,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  miniAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+
+  // ── Bubble wrapper + bubble ──────────────────────────────────────
+  bubbleWrap: {
+    maxWidth: '82%',
+  },
+  bubble: {
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  aiBubble: {
+    backgroundColor: '#EEF2FF',
+    borderBottomLeftRadius: 4,
+  },
+  userBubble: {
+    backgroundColor: AI_INDIGO,
+    borderBottomRightRadius: 4,
+  },
+  bubbleText: {
+    fontSize: 14,
     color: colors.text,
-    lineHeight: 22,
-    marginBottom: 6,
+    lineHeight: 20,
   },
-  messageTime: {
-    fontSize: 12,
+  userBubbleText: {
+    color: '#FFFFFF',
+  },
+
+  // ── Timestamps ───────────────────────────────────────────────────
+  timestamp: {
+    fontSize: 11,
     color: colors.textLight,
+    marginTop: 3,
+    marginLeft: 2,
+  },
+  userTimestamp: {
+    textAlign: 'right',
+    marginLeft: 0,
+    marginRight: 2,
   },
 });
