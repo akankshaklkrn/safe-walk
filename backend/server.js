@@ -95,14 +95,14 @@ app.post('/alerts/sos', async (req, res) => {
       });
     }
 
+    const mapLink = buildGoogleMapsLink(lat, lng);
     const body = [
       `SafeWalk SOS alert for ${userId}.`,
       payload?.message || 'Emergency alert triggered.',
       `Emergency contact: ${emergencyContactName}.`,
       `Trip: ${tripId}.`,
-      `Location: ${buildGoogleMapsLink(lat, lng)}`,
+      `Current location: ${mapLink}`,
     ].join(' ');
-    const mapLink = buildGoogleMapsLink(lat, lng);
 
     const smtpHost = requireEnv('EMAIL_SMTP_HOST');
     const smtpPort = Number(process.env.EMAIL_SMTP_PORT || 587);
@@ -126,6 +126,19 @@ app.post('/alerts/sos', async (req, res) => {
       to: emergencyContactEmail,
       subject: `SafeWalk SOS Alert - ${userId}`,
       text: `${body}\n\nMap link: ${mapLink}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+          <h2>SafeWalk SOS Alert</h2>
+          <p><strong>User:</strong> ${userId}</p>
+          <p><strong>Message:</strong> ${payload?.message || 'Emergency alert triggered.'}</p>
+          <p><strong>Trip:</strong> ${tripId}</p>
+          <p><strong>Emergency Contact:</strong> ${emergencyContactName}</p>
+          <p>
+            <strong>Current Location:</strong>
+            <a href="${mapLink}" target="_blank" rel="noopener noreferrer">${mapLink}</a>
+          </p>
+        </div>
+      `,
     });
 
     return res.json({
