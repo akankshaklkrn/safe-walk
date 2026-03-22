@@ -10,7 +10,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Constants from 'expo-constants';
-import { useConversation } from '@elevenlabs/react-native';
 import { colors } from '../constants/colors';
 import { SafetyStatus, CommuteMode } from '../types';
 import MapView from '../components/MapView';
@@ -21,13 +20,12 @@ import AICompanionPanel from '../components/AICompanionPanel';
 import CheckInModal from '../components/CheckInModal';
 import EscalationAlert from '../components/EscalationAlert';
 import { getMockAIMessages, AIMessage } from '../data/mockMessages';
-import { useTripContext } from '../context/TripContext';
+import { useTripConversation } from '../hooks/useTripConversation';
 import { containsSafeWord } from '../services/p3';
 
 export default function ActiveTripScreen() {
   const router = useRouter();
   const { destination, routeName, mode, safeWord } = useLocalSearchParams();
-  const { tripSetupData } = useTripContext();
   const [safetyStatus, setSafetyStatus] = useState<SafetyStatus>('safe');
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [showEscalation, setShowEscalation] = useState(false);
@@ -58,7 +56,7 @@ export default function ActiveTripScreen() {
     setAiMessages((currentMessages) => [...currentMessages, message]);
   };
 
-  const conversation = useConversation({
+  const conversation = useTripConversation({
     tokenFetchUrl,
     onConnect: ({ conversationId }) => {
       setVoiceStatus(`Companion connected: ${conversationId}`);
