@@ -32,6 +32,7 @@ export default function SafetySetupScreen() {
   const [newContact, setNewContact] = useState({
     name: '',
     phoneNumber: '',
+    email: '',
     relationship: '',
   });
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
@@ -102,6 +103,12 @@ export default function SafetySetupScreen() {
       errors.phoneNumber = 'Invalid phone number format';
     }
 
+    if (!newContact.email.trim()) {
+      errors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newContact.email.trim())) {
+      errors.email = 'Invalid email format';
+    }
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -115,12 +122,13 @@ export default function SafetySetupScreen() {
       id: Date.now().toString(),
       name: newContact.name.trim(),
       phoneNumber: newContact.phoneNumber.trim(),
+      email: newContact.email.trim().toLowerCase(),
       relationship: newContact.relationship.trim() || undefined,
       isPrimary: emergencyContacts.length === 0,
     };
 
     setEmergencyContacts([...emergencyContacts, contact]);
-    setNewContact({ name: '', phoneNumber: '', relationship: '' });
+    setNewContact({ name: '', phoneNumber: '', email: '', relationship: '' });
     setFormErrors({});
     setShowAddContact(false);
   };
@@ -232,6 +240,7 @@ export default function SafetySetupScreen() {
                   )}
                 </View>
                 <Text style={styles.contactPhone}>{contact.phoneNumber}</Text>
+                <Text style={styles.contactEmail}>{contact.email}</Text>
                 {contact.relationship && (
                   <Text style={styles.contactRelationship}>{contact.relationship}</Text>
                 )}
@@ -277,6 +286,17 @@ export default function SafetySetupScreen() {
               )}
 
               <TextInput
+                style={[styles.input, formErrors.email && styles.inputError]}
+                placeholder="Email ID *"
+                value={newContact.email}
+                onChangeText={(text) => setNewContact({ ...newContact, email: text })}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {formErrors.email && <Text style={styles.errorLabel}>{formErrors.email}</Text>}
+
+              <TextInput
                 style={styles.input}
                 placeholder="Relationship (optional)"
                 value={newContact.relationship}
@@ -288,7 +308,7 @@ export default function SafetySetupScreen() {
                   style={styles.cancelButton}
                   onPress={() => {
                     setShowAddContact(false);
-                    setNewContact({ name: '', phoneNumber: '', relationship: '' });
+                    setNewContact({ name: '', phoneNumber: '', email: '', relationship: '' });
                     setFormErrors({});
                   }}
                 >
@@ -452,6 +472,11 @@ const styles = StyleSheet.create({
   contactPhone: {
     fontSize: 15,
     color: colors.text,
+    marginBottom: 2,
+  },
+  contactEmail: {
+    fontSize: 14,
+    color: colors.textLight,
     marginBottom: 2,
   },
   contactRelationship: {
