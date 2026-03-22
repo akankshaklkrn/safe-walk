@@ -74,6 +74,7 @@ export default function ActiveTripScreen() {
   const [deviationLevel, setDeviationLevel] = useState<DeviationLevel>('none');
   const [rejoinedBanner, setRejoinedBanner] = useState(false);
 
+  const [showEscalationPrompt, setShowEscalationPrompt] = useState(false);
   const [showSOSConfirmation, setShowSOSConfirmation] = useState(false);
   const [pendingEscalationReason, setPendingEscalationReason] = useState('');
   const [draftMessage, setDraftMessage] = useState('');
@@ -201,6 +202,7 @@ export default function ActiveTripScreen() {
     countdownActiveRef.current = true;
     setPendingEscalationReason(reason);
     setSafetyStatus('uncertain');
+    setShowEscalationPrompt(true);
   };
 
   const conversation = useTripConversation({
@@ -262,6 +264,7 @@ export default function ActiveTripScreen() {
 
   const handleEscalation = async (reason: string, alertType = 'critical') => {
     countdownActiveRef.current = false;
+    setShowEscalationPrompt(false);
     setEscalated(true);
     setSafetyStatus('risk');
 
@@ -286,7 +289,7 @@ export default function ActiveTripScreen() {
         sender: 'ai',
       });
     }
-
+    setShowSOSConfirmation(true);
   };
 
   useEffect(() => {
@@ -444,6 +447,7 @@ export default function ActiveTripScreen() {
 
   const handleConfirmSafe = async () => {
     countdownActiveRef.current = false;
+    setShowEscalationPrompt(false);
     setSafetyStatus('safe');
     setPendingEscalationReason('');
 
@@ -470,7 +474,6 @@ export default function ActiveTripScreen() {
 
   const handleSOS = () => {
     void handleEscalation('Manual SOS triggered');
-    setShowSOSConfirmation(true);
 
     // Fire backend + email calls in the background after UI has already responded
     const activeLocation = currentLocation ?? fallbackLoc.current;
@@ -728,6 +731,11 @@ export default function ActiveTripScreen() {
         </View>
       )}
 
+      <EscalationAlert
+        visible={showEscalationPrompt}
+        onConfirmSafe={() => void handleConfirmSafe()}
+        onEmergencyContact={handleEmergencyContact}
+      />
       <EscalationAlert
         visible={showSOSConfirmation}
         escalatedMode

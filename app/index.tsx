@@ -17,15 +17,9 @@ import { useAuthContext } from '../context/AuthContext';
 import { getPlaceSuggestions, type PlaceSuggestion } from '../services/api';
 import { CommuteMode } from '../types';
 
-// Mock recent destinations
-const RECENT_DESTINATIONS = [
-  { id: '1', name: 'Home', address: '123 Maple Street, Sunset Valley' },
-  { id: '2', name: 'Downtown Office', address: 'Tech Tower 4, Main Business District' },
-];
-
 export default function HomeScreen() {
   const router = useRouter();
-  const { authUser, loading, profile, saveProfile } = useAuthContext();
+  const { authUser, loading, logout, profile, saveProfile, saveRecentSearch } = useAuthContext();
   const [destination, setDestination] = useState('');
   const [mode, setMode] = useState<CommuteMode>('walking');
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
@@ -81,19 +75,19 @@ export default function HomeScreen() {
       void saveProfile({ safeWord: newSafeWord.trim() });
     }
 
+    const normalizedDestination = destination.trim();
+    void saveRecentSearch(normalizedDestination);
     setShowDropdown(false);
     router.push({
       pathname: '/safety-setup',
-      params: { destination, mode, safeWord: effectiveSafeWord.trim() },
+      params: { destination: normalizedDestination, mode, safeWord: effectiveSafeWord.trim() },
     });
   };
 
-  const handleClearRecent = () => {
-    // TODO: Implement clear recent destinations
-  };
-
-  const handleSelectRecent = (dest: typeof RECENT_DESTINATIONS[0]) => {
-    setDestination(dest.name + ' — ' + dest.address);
+  const handleSelectRecent = (search: string) => {
+    setDestination(search);
+    setSuggestions([]);
+    setShowDropdown(false);
   };
 
   if (!authUser) {
@@ -113,11 +107,8 @@ export default function HomeScreen() {
         </View>
         <Text style={styles.appBarTitle}>SafeWalk</Text>
         <View style={styles.appBarRight}>
-          <TouchableOpacity style={styles.iconButton}>
-            <Text style={styles.iconText}>🔔</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton}>
-            <Text style={styles.iconText}>⚙️</Text>
+          <TouchableOpacity style={styles.logoutButton} onPress={() => void logout()}>
+            <Text style={styles.logoutButtonText}>Log Out</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -145,180 +136,180 @@ export default function HomeScreen() {
             </Text>
           </View>
 
-        {/* Commute Mode */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>COMMUTE MODE</Text>
-          <View style={styles.modeButtons}>
-            <TouchableOpacity
-              style={[styles.modeButton, mode === 'walking' && styles.modeButtonActive]}
-              onPress={() => setMode('walking')}
-            >
-              <Text style={styles.modeIcon}>🚶</Text>
-              <Text style={[styles.modeText, mode === 'walking' && styles.modeTextActive]}>
-                Walking
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.modeButton, mode === 'car' && styles.modeButtonActive]}
-              onPress={() => setMode('car')}
-            >
-              <Text style={styles.modeIcon}>🚗</Text>
-              <Text style={[styles.modeText, mode === 'car' && styles.modeTextActive]}>
-                Car
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Destination */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>DESTINATION</Text>
-          <TextInput
-            style={[styles.input, showDropdown && styles.inputOpen]}
-            placeholder="Enter destination"
-            placeholderTextColor={colors.textLight}
-            value={destination}
-            onChangeText={handleDestinationChange}
-            onFocus={() => suggestions.length > 0 && setShowDropdown(true)}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          {showDropdown &&
-            suggestions.map((item, index) => (
+          {/* Commute Mode */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>COMMUTE MODE</Text>
+            <View style={styles.modeButtons}>
               <TouchableOpacity
-                key={item.placeId}
-                style={[
-                  styles.suggestionItem,
-                  index === 0 && styles.suggestionItemFirst,
-                  index === suggestions.length - 1 && styles.suggestionItemLast,
-                ]}
-                onPress={() => handleSelectSuggestion(item)}
-                activeOpacity={0.7}
+                style={[styles.modeButton, mode === 'walking' && styles.modeButtonActive]}
+                onPress={() => setMode('walking')}
               >
-                <Text style={styles.suggestionIcon}>📍</Text>
-                <Text style={styles.suggestionText} numberOfLines={2}>
-                  {item.description}
+                <Text style={styles.modeIcon}>🚶</Text>
+                <Text style={[styles.modeText, mode === 'walking' && styles.modeTextActive]}>
+                  Walking
                 </Text>
               </TouchableOpacity>
-            ))}
-        </View>
 
-        {/* Danger Word */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>DANGER WORD</Text>
-
-          {/* Saved / New toggle */}
-          <View style={styles.swToggle}>
-            <TouchableOpacity
-              style={[styles.swOption, safeWordMode === 'saved' && styles.swOptionActive]}
-              onPress={() => setSafeWordMode('saved')}
-              disabled={!hasSavedWord}
-              activeOpacity={0.7}
-            >
-              <Text style={[
-                styles.swOptionText,
-                safeWordMode === 'saved' && styles.swOptionTextActive,
-                !hasSavedWord && styles.swOptionTextDisabled,
-              ]}>
-                Use saved word
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.swOption, safeWordMode === 'new' && styles.swOptionActive]}
-              onPress={() => setSafeWordMode('new')}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.swOptionText, safeWordMode === 'new' && styles.swOptionTextActive]}>
-                Create new
-              </Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modeButton, mode === 'car' && styles.modeButtonActive]}
+                onPress={() => setMode('car')}
+              >
+                <Text style={styles.modeIcon}>🚗</Text>
+                <Text style={[styles.modeText, mode === 'car' && styles.modeTextActive]}>
+                  Car
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
-          {/* Display: saved word box OR new word input */}
-          {safeWordMode === 'saved' && hasSavedWord ? (
-            <View style={styles.savedWordBox}>
-              <Text style={styles.savedWordLabel}>SAVED WORD</Text>
-              <Text style={styles.savedWordValue}>{profile!.safeWord}</Text>
-            </View>
-          ) : (
+          {/* Destination */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>DESTINATION</Text>
             <TextInput
-              style={styles.swInput}
-              placeholder="e.g. umbrella, lighthouse…"
-              placeholderTextColor={colors.gray[400]}
-              value={newSafeWord}
-              onChangeText={setNewSafeWord}
+              style={[styles.input, showDropdown && styles.inputOpen]}
+              placeholder="Enter destination"
+              placeholderTextColor={colors.textLight}
+              value={destination}
+              onChangeText={handleDestinationChange}
+              onFocus={() => suggestions.length > 0 && setShowDropdown(true)}
               autoCapitalize="none"
               autoCorrect={false}
             />
-          )}
-
-          <Text style={styles.swHelper}>
-            If this word is spoken, SafeWalk will trigger emergency escalation.
-          </Text>
-        </View>
-
-        {/* Recent Destinations */}
-        <View style={styles.section}>
-          <View style={styles.recentHeader}>
-            <Text style={styles.recentLabel}>Recent</Text>
-            <TouchableOpacity onPress={handleClearRecent}>
-              <Text style={styles.clearText}>Clear</Text>
-            </TouchableOpacity>
+            {showDropdown &&
+              suggestions.map((item, index) => (
+                <TouchableOpacity
+                  key={item.placeId}
+                  style={[
+                    styles.suggestionItem,
+                    index === 0 && styles.suggestionItemFirst,
+                    index === suggestions.length - 1 && styles.suggestionItemLast,
+                  ]}
+                  onPress={() => handleSelectSuggestion(item)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.suggestionIcon}>📍</Text>
+                  <Text style={styles.suggestionText} numberOfLines={2}>
+                    {item.description}
+                  </Text>
+                </TouchableOpacity>
+              ))}
           </View>
-          {RECENT_DESTINATIONS.map((dest) => (
-            <TouchableOpacity
-              key={dest.id}
-              style={styles.recentCard}
-              onPress={() => handleSelectRecent(dest)}
-            >
-              <View style={styles.recentIcon}>
-                <Text style={styles.recentIconText}>📍</Text>
-              </View>
-              <View style={styles.recentInfo}>
-                <Text style={styles.recentName}>{dest.name}</Text>
-                <Text style={styles.recentAddress}>{dest.address}</Text>
-              </View>
-              <Text style={styles.recentChevron}>›</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
 
-        {/* CTA Button */}
-        <TouchableOpacity
-          style={[styles.ctaButton, (!destination.trim() || !effectiveSafeWord.trim()) && styles.ctaButtonDisabled]}
-          onPress={handleFindRoutes}
-          disabled={!destination.trim() || !effectiveSafeWord.trim()}
-        >
-          <Text style={styles.ctaButtonText}>Find Safest Routes</Text>
+          {/* Danger Word */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>DANGER WORD</Text>
+
+            {/* Saved / New toggle */}
+            <View style={styles.swToggle}>
+              <TouchableOpacity
+                style={[styles.swOption, safeWordMode === 'saved' && styles.swOptionActive]}
+                onPress={() => setSafeWordMode('saved')}
+                disabled={!hasSavedWord}
+                activeOpacity={0.7}
+              >
+                <Text style={[
+                  styles.swOptionText,
+                  safeWordMode === 'saved' && styles.swOptionTextActive,
+                  !hasSavedWord && styles.swOptionTextDisabled,
+                ]}>
+                  Use saved word
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.swOption, safeWordMode === 'new' && styles.swOptionActive]}
+                onPress={() => setSafeWordMode('new')}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.swOptionText, safeWordMode === 'new' && styles.swOptionTextActive]}>
+                  Create new
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Display: saved word box OR new word input */}
+            {safeWordMode === 'saved' && hasSavedWord ? (
+              <View style={styles.savedWordBox}>
+                <Text style={styles.savedWordLabel}>SAVED WORD</Text>
+                <Text style={styles.savedWordValue}>{profile!.safeWord}</Text>
+              </View>
+            ) : (
+              <TextInput
+                style={styles.swInput}
+                placeholder="e.g. umbrella, lighthouse…"
+                placeholderTextColor={colors.gray[400]}
+                value={newSafeWord}
+                onChangeText={setNewSafeWord}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            )}
+
+            <Text style={styles.swHelper}>
+              If this word is spoken, SafeWalk will trigger emergency escalation.
+            </Text>
+          </View>
+
+          {/* Recent Destinations */}
+          <View style={styles.section}>
+            <View style={styles.recentHeader}>
+              <Text style={styles.recentLabel}>Recent</Text>
+            </View>
+            {(profile?.recentSearches ?? []).length === 0 ? (
+              <Text style={styles.recentEmptyText}>Your last two searches will appear here.</Text>
+            ) : null}
+            {(profile?.recentSearches ?? []).map((search: string) => (
+              <TouchableOpacity
+                key={search}
+                style={styles.recentCard}
+                onPress={() => handleSelectRecent(search)}
+              >
+                <View style={styles.recentIcon}>
+                  <Text style={styles.recentIconText}>📍</Text>
+                </View>
+                <View style={styles.recentInfo}>
+                  <Text style={styles.recentName} numberOfLines={1}>{search}</Text>
+                  <Text style={styles.recentAddress}>Tap to use this destination</Text>
+                </View>
+                <Text style={styles.recentChevron}>›</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* CTA Button */}
+          <TouchableOpacity
+            style={[styles.ctaButton, (!destination.trim() || !effectiveSafeWord.trim()) && styles.ctaButtonDisabled]}
+            onPress={handleFindRoutes}
+            disabled={!destination.trim() || !effectiveSafeWord.trim()}
+          >
+            <Text style={styles.ctaButtonText}>Find Safest Routes</Text>
+          </TouchableOpacity>
+
+          {/* Helper Text */}
+          <Text style={styles.ctaHelper}>AI ACTIVE MONITORING DURING TRANSIT</Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* Bottom Tab Bar */}
+      <View style={styles.tabBar}>
+        <TouchableOpacity style={styles.tab}>
+          <Text style={styles.tabIcon}>🏠</Text>
+          <Text style={[styles.tabLabel, styles.tabLabelActive]}>Home</Text>
         </TouchableOpacity>
-
-        {/* Helper Text */}
-        <Text style={styles.ctaHelper}>AI ACTIVE MONITORING DURING TRANSIT</Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
-
-    {/* Bottom Tab Bar */}
-    <View style={styles.tabBar}>
-      <TouchableOpacity style={styles.tab}>
-        <Text style={styles.tabIcon}>🏠</Text>
-        <Text style={[styles.tabLabel, styles.tabLabelActive]}>Home</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.tab}>
-        <View style={styles.tabIconContainer}>
-          <Text style={styles.tabIcon}>🛡️</Text>
-          <View style={styles.notificationBadge}>
-            <Text style={styles.notificationText}>9</Text>
+        <TouchableOpacity style={styles.tab}>
+          <View style={styles.tabIconContainer}>
+            <Text style={styles.tabIcon}>🛡️</Text>
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationText}>9</Text>
+            </View>
           </View>
-        </View>
-        <Text style={styles.tabLabel}>Safety</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.tab}>
-        <Text style={styles.tabIcon}>👤</Text>
-        <Text style={styles.tabLabel}>Profile</Text>
-      </TouchableOpacity>
+          <Text style={styles.tabLabel}>Safety</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tab}>
+          <Text style={styles.tabIcon}>👤</Text>
+          <Text style={styles.tabLabel}>Profile</Text>
+        </TouchableOpacity>
+      </View>
     </View>
-  </View>
   );
 }
 
@@ -359,9 +350,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   appBarRight: {
-    flexDirection: 'row',
-    gap: 12,
-    width: 80,
+    width: 110,
     justifyContent: 'flex-end',
   },
   iconButton: {
@@ -618,10 +607,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6B7280',
   },
-  clearText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#5b5299',
+  recentEmptyText: {
+    fontSize: 14,
+    color: colors.textLight,
+    paddingVertical: 8,
   },
   recentCard: {
     flexDirection: 'row',
