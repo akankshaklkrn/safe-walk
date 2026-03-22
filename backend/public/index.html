@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SafeWalk API Tester</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: #60a5fa;
+      margin-bottom: 4px;
+    }
+    .subtitle { font-size: 13px; color: #64748b; margin-bottom: 32px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      background: #1e2130;
+      border: 1px solid #2d3148;
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .method {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+    .get  { background: #164e36; color: #34d399; }
+    .post { background: #1e3a5f; color: #60a5fa; }
+
+    .card-title { font-size: 14px; font-weight: 600; color: #e2e8f0; }
+    .card-path  { font-size: 12px; color: #64748b; margin-left: auto; font-family: monospace; }
+
+    label { font-size: 12px; color: #94a3b8; display: block; margin-bottom: 4px; margin-top: 10px; }
+
+    input, select, textarea {
+      width: 100%;
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: #e2e8f0;
+      font-size: 13px;
+      font-family: monospace;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus, select:focus, textarea:focus { border-color: #60a5fa; }
+    textarea { resize: vertical; min-height: 80px; }
+    select option { background: #1e2130; }
+
+    button {
+      margin-top: 14px;
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      background: #2563eb;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover { background: #1d4ed8; }
+    button:disabled { background: #374151; color: #6b7280; cursor: not-allowed; }
+
+    .response {
+      margin-top: 12px;
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      border-radius: 6px;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 220px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      display: none;
+    }
+    .response.visible { display: block; }
+    .response.ok  { border-color: #166534; color: #86efac; }
+    .response.err { border-color: #7f1d1d; color: #fca5a5; }
+
+    .status-bar {
+      margin-bottom: 20px;
+      padding: 10px 16px;
+      background: #1e2130;
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+      flex-wrap: wrap;
+    }
+    .status-bar span { color: #64748b; }
+    .status-bar strong { color: #e2e8f0; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .badge-green  { background: #14532d; color: #4ade80; }
+    .badge-yellow { background: #713f12; color: #fde047; }
+    .badge-red    { background: #7f1d1d; color: #f87171; }
+    .badge-gray   { background: #1f2937; color: #9ca3af; }
+
+    .divider { grid-column: 1 / -1; border: none; border-top: 1px solid #2d3148; }
+    .section-label {
+      grid-column: 1 / -1;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #475569;
+      text-transform: uppercase;
+      padding: 4px 0;
+    }
+  </style>
+</head>
+<body>
+
+<h1>SafeWalk API</h1>
+<p class="subtitle">Live backend tester — results appear inline after each request</p>
+
+<div class="status-bar" id="statusBar">
+  <span>Trip ID: <strong id="dispTripId">—</strong></span>
+  <span>Status: <span id="dispStatus"><span class="badge badge-gray">none</span></span></span>
+  <span>Escalated: <strong id="dispEscalated">—</strong></span>
+  <span>Last ETA: <strong id="dispEta">—</strong></span>
+</div>
+
+<div class="grid">
+
+  <!-- ── HEALTH ─────────────────────────────────────────── -->
+  <div class="section-label">System</div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="method get">GET</span>
+      <span class="card-title">Health Check</span>
+      <span class="card-path">/health</span>
+    </div>
+    <button onclick="req('GET','/health',null,'res-health')">Send</button>
+    <pre class="response" id="res-health"></pre>
+  </div>
+
+  <!-- ── ROUTES ─────────────────────────────────────────── -->
+  <hr class="divider" />
+  <div class="section-label">Milestone 1 — Route Fetching</div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="method post">POST</span>
+      <span class="card-title">Fetch Routes</span>
+      <span class="card-path">/routes</span>
+    </div>
+    <label>Destination</label>
+    <input id="r-dest" value="Times Square, New York" />
+    <label>Mode</label>
+    <select id="r-mode">
+      <option value="walking">walking</option>
+      <option value="car">car</option>
+    </select>
+    <label>Current Location (lat, lng)</label>
+    <input id="r-lat" value="40.7128" style="width:48%;display:inline-block;margin-right:4%" />
+    <input id="r-lng" value="-74.0060" style="width:48%;display:inline-block" />
+    <button onclick="fetchRoutes()">Send</button>
+    <pre class="response" id="res-routes"></pre>
+  </div>
+
+  <!-- ── START TRIP ─────────────────────────────────────── -->
+  <hr class="divider" />
+  <div class="section-label">Milestone 2 — Trip Session</div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="method post">POST</span>
+      <span class="card-title">Start Trip</span>
+      <span class="card-path">/start-trip</span>
+    </div>
+    <label>User ID</label>
+    <input id="st-userId" value="user_001" />
+    <label>Destination</label>
+    <input id="st-dest" value="Times Square, New York" />
+    <label>Trusted Contact Name</label>
+    <input id="st-tcName" value="Sarah" />
+    <label>Trusted Contact Phone</label>
+    <input id="st-tcPhone" value="+1234567890" />
+    <label>Route (auto-filled from /routes — or paste a route_0 object)</label>
+    <textarea id="st-route" placeholder="Run /routes first — the fastest route will auto-fill here"></textarea>
+    <label>Current Location (lat, lng)</label>
+    <input id="st-lat" value="40.7128" style="width:48%;display:inline-block;margin-right:4%" />
+    <input id="st-lng" value="-74.0060" style="width:48%;display:inline-block" />
+    <button onclick="startTrip()">Send</button>
+    <pre class="response" id="res-start"></pre>
+  </div>
+
+  <!-- ── LIVE MONITORING ───────────────────────────────── -->
+  <hr class="divider" />
+  <div class="section-label">Live Monitoring</div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="method post">POST</span>
+      <span class="card-title">Update Location</span>
+      <span class="card-path">/update-location</span>
+    </div>
+    <label>Trip ID (auto-filled after Start Trip)</label>
+    <input id="ul-tripId" placeholder="auto-filled" />
+    <label>Presets</label>
+    <select id="ul-preset" onchange="applyPreset()">
+      <option value="">— pick a scenario —</option>
+      <option value="40.71294,-74.00595">On route (GREEN)</option>
+      <option value="40.7135,-74.0100">Slight deviation (YELLOW ~80m)</option>
+      <option value="40.7145,-74.0200">Large deviation (RED ~900m)</option>
+      <option value="40.7500,-74.0800">Very far off (RED ~7km)</option>
+    </select>
+    <label>Lat</label>
+    <input id="ul-lat" value="40.71294" />
+    <label>Lng</label>
+    <input id="ul-lng" value="-74.00595" />
+    <button onclick="updateLocation()">Send</button>
+    <pre class="response" id="res-update"></pre>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="method get">GET</span>
+      <span class="card-title">Get Status</span>
+      <span class="card-path">/status/:tripId</span>
+    </div>
+    <label>Trip ID (auto-filled after Start Trip)</label>
+    <input id="gs-tripId" placeholder="auto-filled" />
+    <button onclick="getStatus()">Send</button>
+    <pre class="response" id="res-status"></pre>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="method post">POST</span>
+      <span class="card-title">Check Response</span>
+      <span class="card-path">/check-response</span>
+    </div>
+    <label>Trip ID (auto-filled after Start Trip)</label>
+    <input id="cr-tripId" placeholder="auto-filled" />
+    <label>Response</label>
+    <select id="cr-response">
+      <option value="ok">ok — user is fine, clear check-in</option>
+      <option value="sos">sos — manual SOS → RED + escalate</option>
+      <option value="danger-word">danger-word → RED + escalate</option>
+      <option value="no-response">no-response → RED + escalate</option>
+    </select>
+    <button onclick="checkResponse()">Send</button>
+    <pre class="response" id="res-check"></pre>
+  </div>
+
+</div><!-- /grid -->
+
+<script>
+  const BASE = 'http://localhost:3000';
+  let storedRoutes = null;
+
+  // ── Core fetch helper ────────────────────────────────────────────────────
+  async function req(method, path, body, resId) {
+    const el = document.getElementById(resId);
+    el.className = 'response visible';
+    el.textContent = 'Loading…';
+    try {
+      const opts = { method, headers: { 'Content-Type': 'application/json' } };
+      if (body) opts.body = JSON.stringify(body);
+      const r = await fetch(BASE + path, opts);
+      const json = await r.json();
+      el.textContent = JSON.stringify(json, null, 2);
+      el.className = r.ok ? 'response visible ok' : 'response visible err';
+      return { ok: r.ok, data: json };
+    } catch (e) {
+      el.textContent = 'Error: ' + e.message;
+      el.className = 'response visible err';
+      return { ok: false, data: null };
+    }
+  }
+
+  // ── Set trip ID across all inputs when a trip starts ─────────────────────
+  function setTripId(id) {
+    ['ul-tripId','gs-tripId','cr-tripId'].forEach(k => {
+      document.getElementById(k).value = id;
+    });
+    document.getElementById('dispTripId').textContent = id.slice(0, 8) + '…';
+  }
+
+  function updateStatusBar(data) {
+    if (data.status) {
+      const colors = { GREEN: 'badge-green', YELLOW: 'badge-yellow', RED: 'badge-red' };
+      document.getElementById('dispStatus').innerHTML =
+        `<span class="badge ${colors[data.status] || 'badge-gray'}">${data.status}</span>`;
+    }
+    if (data.escalated !== undefined)
+      document.getElementById('dispEscalated').textContent = data.escalated ? '🚨 YES' : 'No';
+  }
+
+  // ── Endpoint handlers ────────────────────────────────────────────────────
+  async function fetchRoutes() {
+    const body = {
+      destination:     document.getElementById('r-dest').value,
+      mode:            document.getElementById('r-mode').value,
+      currentLocation: {
+        lat: parseFloat(document.getElementById('r-lat').value),
+        lng: parseFloat(document.getElementById('r-lng').value),
+      }
+    };
+    const { ok, data } = await req('POST', '/routes', body, 'res-routes');
+    if (ok && data.routes?.length) {
+      storedRoutes = data.routes;
+      // Auto-fill the fastest route into start-trip
+      document.getElementById('st-route').value = JSON.stringify(data.routes[0], null, 2);
+      // Sync destination
+      document.getElementById('st-dest').value = body.destination;
+    }
+  }
+
+  async function startTrip() {
+    let selectedRoute;
+    try {
+      selectedRoute = JSON.parse(document.getElementById('st-route').value);
+    } catch {
+      alert('Route JSON is invalid. Run /routes first.');
+      return;
+    }
+    const body = {
+      userId:          document.getElementById('st-userId').value,
+      destination:     document.getElementById('st-dest').value,
+      trustedContact:  {
+        name:  document.getElementById('st-tcName').value,
+        phone: document.getElementById('st-tcPhone').value,
+      },
+      selectedRoute,
+      currentLocation: {
+        lat: parseFloat(document.getElementById('st-lat').value),
+        lng: parseFloat(document.getElementById('st-lng').value),
+      }
+    };
+    const { ok, data } = await req('POST', '/start-trip', body, 'res-start');
+    if (ok && data.session?.tripId) {
+      setTripId(data.session.tripId);
+      document.getElementById('dispEta').textContent = data.session.expectedEtaMinutes + ' min';
+      updateStatusBar({ status: data.session.status, escalated: false });
+    }
+  }
+
+  async function updateLocation() {
+    const body = {
+      tripId: document.getElementById('ul-tripId').value,
+      lat:    parseFloat(document.getElementById('ul-lat').value),
+      lng:    parseFloat(document.getElementById('ul-lng').value),
+    };
+    const { ok, data } = await req('POST', '/update-location', body, 'res-update');
+    if (ok && data) updateStatusBar(data);
+  }
+
+  async function getStatus() {
+    const id = document.getElementById('gs-tripId').value;
+    if (!id) { alert('No trip ID — run Start Trip first.'); return; }
+    const { ok, data } = await req('GET', `/status/${id}`, null, 'res-status');
+    if (ok && data) updateStatusBar(data);
+  }
+
+  async function checkResponse() {
+    const body = {
+      tripId:   document.getElementById('cr-tripId').value,
+      response: document.getElementById('cr-response').value,
+    };
+    const { ok, data } = await req('POST', '/check-response', body, 'res-check');
+    if (ok && data) updateStatusBar(data);
+  }
+
+  function applyPreset() {
+    const val = document.getElementById('ul-preset').value;
+    if (!val) return;
+    const [lat, lng] = val.split(',');
+    document.getElementById('ul-lat').value = lat;
+    document.getElementById('ul-lng').value = lng;
+  }
+</script>
+
+</body>
+</html>

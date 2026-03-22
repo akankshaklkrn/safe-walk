@@ -1,35 +1,80 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
+  View, Text, ScrollView, TouchableOpacity,
+  StyleSheet, SafeAreaView, ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { colors } from '../constants/colors';
-import { getMockRoutes } from '../data/mockRoutes';
 import RouteCard from '../components/RouteCard';
-import { Route, CommuteMode } from '../types';
+import type { Route, CommuteMode } from '../types';
+import {
+  fetchRoutes,
+  startTrip,
+  getCurrentLocation,
+  type RouteOptionRaw,
+} from '../services/api';
 
 export default function RouteSelectionScreen() {
-  const { destination, mode } = useLocalSearchParams();
+  const { destination, mode } = useLocalSearchParams<{ destination: string; mode: CommuteMode }>();
   const router = useRouter();
-  const routes = getMockRoutes(destination as string, mode as CommuteMode);
-  const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
 
-  const handleStartTrip = () => {
-    if (selectedRoute) {
+  // Routes are stored as display Route (for RouteCard) + raw RouteOptionRaw (for startTrip)
+  const [routes, setRoutes]               = useState<Array<Route & { _raw: RouteOptionRaw }>>([]);
+  const [selectedRoute, setSelectedRoute] = useState<(Route & { _raw: RouteOptionRaw }) | null>(null);
+  const [loading, setLoading]             = useState(true);
+  const [error, setError]                 = useState<string | null>(null);
+  const [starting, setStarting]           = useState(false);
+
+  // Fetch real routes from backend on mount
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        setLoading(true);
+        setError(null);
+        const currentLocation = await getCurrentLocation();
+        const result = await fetchRoutes(destination ?? '', mode ?? 'walking', currentLocation);
+        if (!cancelled) setRoutes(result);
+      } catch (e) {
+        if (!cancelled) setError((e as Error).message ?? 'Could not fetch routes');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [destination, mode]);
+
+  const handleStartTrip = async () => {
+    if (!selectedRoute) return;
+    setStarting(true);
+    try {
+      const currentLocation = await getCurrentLocation();
+      const session = await startTrip({
+        userId:         'user_001',
+        destination:    destination ?? '',
+        trustedContact: { name: 'Emergency Contact', phone: '+1234567890' },
+        selectedRoute:  selectedRoute._raw,
+        currentLocation,
+      });
+
+      // Navigate to active trip — pass session facts as string params
       router.push({
         pathname: '/active-trip',
         params: {
-          destination,
-          mode,
-          routeId: selectedRoute.id,
-          routeName: selectedRoute.name,
+          tripId:          session.tripId,
+          destination:     session.destination,
+          mode:            session.mode,
+          etaMinutes:      String(session.expectedEtaMinutes),
+          distanceMeters:  String(selectedRoute._raw.distanceMeters),
+          startLat:        String(session.startLocation.lat),
+          startLng:        String(session.startLocation.lng),
+          routeName:       selectedRoute.name,
         },
       });
+    } catch (e) {
+      setError((e as Error).message ?? 'Failed to start trip');
+      setStarting(false);
     }
   };
 
@@ -53,7 +98,39 @@ export default function RouteSelectionScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {routes.map((route) => (
+        {/* Loading state */}
+        {loading && (
+          <View style={styles.centeredState}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.stateText}>Fetching routes from Google Maps…</Text>
+          </View>
+        )}
+
+        {/* Error state */}
+        {!loading && error && (
+          <View style={styles.centeredState}>
+            <Text style={styles.errorIcon}>⚠️</Text>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => {
+                setError(null);
+                setLoading(true);
+                getCurrentLocation().then(loc =>
+                  fetchRoutes(destination ?? '', mode ?? 'walking', loc)
+                    .then(setRoutes)
+                    .catch(e => setError((e as Error).message))
+                    .finally(() => setLoading(false))
+                );
+              }}
+            >
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Route list */}
+        {!loading && !error && routes.map((route) => (
           <RouteCard
             key={route.id}
             route={route}
@@ -65,11 +142,17 @@ export default function RouteSelectionScreen() {
 
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.startButton, !selectedRoute && styles.startButtonDisabled]}
+          style={[
+            styles.startButton,
+            (!selectedRoute || starting) && styles.startButtonDisabled,
+          ]}
           onPress={handleStartTrip}
-          disabled={!selectedRoute}
+          disabled={!selectedRoute || starting}
         >
-          <Text style={styles.startButtonText}>Start Trip</Text>
+          {starting
+            ? <ActivityIndicator color={colors.white} />
+            : <Text style={styles.startButtonText}>Start Trip</Text>
+          }
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -77,75 +160,24 @@ export default function RouteSelectionScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    marginBottom: 12,
-  },
-  backText: {
-    fontSize: 16,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  headerContent: {
-    gap: 4,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.text,
-  },
-  destination: {
-    fontSize: 16,
-    color: colors.textLight,
-  },
-  modeIndicator: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 24,
-  },
-  footer: {
-    padding: 24,
-    paddingBottom: 32,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.white,
-  },
-  startButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-    paddingVertical: 18,
-    alignItems: 'center',
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  startButtonDisabled: {
-    backgroundColor: colors.gray[300],
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  startButtonText: {
-    color: colors.white,
-    fontSize: 18,
-    fontWeight: '600',
-  },
+  container:       { flex: 1, backgroundColor: colors.background },
+  header:          { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
+  backButton:      { marginBottom: 12 },
+  backText:        { fontSize: 16, color: colors.primary, fontWeight: '600' },
+  headerContent:   { gap: 4 },
+  title:           { fontSize: 28, fontWeight: 'bold', color: colors.text },
+  destination:     { fontSize: 16, color: colors.textLight },
+  modeIndicator:   { fontSize: 14, color: colors.primary, fontWeight: '600', marginTop: 4 },
+  scrollView:      { flex: 1 },
+  scrollContent:   { padding: 24 },
+  footer:          { padding: 24, paddingBottom: 32, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.white },
+  startButton:     { backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 18, alignItems: 'center', shadowColor: colors.black, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  startButtonDisabled: { backgroundColor: colors.gray[300], shadowOpacity: 0, elevation: 0 },
+  startButtonText: { color: colors.white, fontSize: 18, fontWeight: '600' },
+  centeredState:   { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 16 },
+  stateText:       { fontSize: 15, color: colors.textLight, textAlign: 'center' },
+  errorIcon:       { fontSize: 40 },
+  errorText:       { fontSize: 15, color: colors.red, textAlign: 'center', paddingHorizontal: 16 },
+  retryButton:     { marginTop: 8, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: colors.primary, borderRadius: 8 },
+  retryText:       { color: colors.white, fontWeight: '600' },
 });
