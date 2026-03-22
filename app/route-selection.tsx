@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Platform,
+  StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import Constants from 'expo-constants';
 import { colors } from '../constants/colors';
-import { generateMockRouteSummary } from '../services/p3';
+import { generateRouteSummary, generateMockRouteSummary } from '../services/p3';
 import RouteCard from '../components/RouteCard';
 import type { Route, CommuteMode, RouteSummaryResponse } from '../types';
 import { useTripContext } from '../context/TripContext';
@@ -41,12 +40,6 @@ export default function RouteSelectionScreen() {
     })
   );
 
-  const routeSummaryUrl = Platform.OS === 'web'
-    ? '/api/route-summary'
-    : Constants.expoConfig?.hostUri
-      ? `http://${Constants.expoConfig.hostUri}/api/route-summary`
-      : null;
-
   const applyRouteSummary = async (nextRoutes: Array<Route & { _raw: RouteOptionRaw }>) => {
     const input = {
       destination: destination || 'your destination',
@@ -54,51 +47,16 @@ export default function RouteSelectionScreen() {
       routes: nextRoutes,
     };
 
-    const fallbackSummary = generateMockRouteSummary(input);
+    const summary = await generateRouteSummary(input);
+    const observationMap = new Map(
+      summary.observations.map((item) => [item.routeId, item.observation])
+    );
 
-    if (!routeSummaryUrl) {
-      setRoutes(nextRoutes.map((route) => ({
-        ...route,
-        observation:
-          fallbackSummary.observations.find((item) => item.routeId === route.id)?.observation ??
-          route.observation,
-      })));
-      setRouteSummary(fallbackSummary);
-      return;
-    }
-
-    try {
-      const response = await fetch(routeSummaryUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(input),
-      });
-
-      if (!response.ok) {
-        throw new Error('Route summary request failed');
-      }
-
-      const summary = (await response.json()) as RouteSummaryResponse;
-      const observationMap = new Map(
-        summary.observations.map((item) => [item.routeId, item.observation])
-      );
-
-      setRoutes(nextRoutes.map((route) => ({
-        ...route,
-        observation: observationMap.get(route.id) ?? route.observation,
-      })));
-      setRouteSummary(summary);
-    } catch {
-      setRoutes(nextRoutes.map((route) => ({
-        ...route,
-        observation:
-          fallbackSummary.observations.find((item) => item.routeId === route.id)?.observation ??
-          route.observation,
-      })));
-      setRouteSummary(fallbackSummary);
-    }
+    setRoutes(nextRoutes.map((route) => ({
+      ...route,
+      observation: observationMap.get(route.id) ?? route.observation,
+    })));
+    setRouteSummary(summary);
   };
 
   // Fetch real routes from backend on mount

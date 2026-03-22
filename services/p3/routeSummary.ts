@@ -1,87 +1,45 @@
 import { Route, RouteSummaryInput, RouteSummaryResponse } from '../../types';
 
+// ── Rule-based fallback descriptions ─────────────────────────────────────────
+
 const describeDirectness = (route: Route) => {
-  const directness = route.metrics?.directness;
-
-  if (directness === 'high') {
-    return 'More direct route';
-  }
-
-  if (directness === 'medium') {
-    return 'Balanced route with a straightforward pace';
-  }
-
+  const d = route.metrics?.directness;
+  if (d === 'high')   return 'More direct route';
+  if (d === 'medium') return 'Balanced route with a straightforward pace';
   return 'Slightly longer path with more route changes';
 };
 
 const describeComplexity = (route: Route) => {
-  const turns = route.metrics?.turnCount ?? 0;
-  const intersections = route.metrics?.intersectionCount ?? 0;
-  const totalChanges = turns + intersections;
-
-  if (totalChanges <= 8) {
-    return 'Fewer turns and intersections';
-  }
-
-  if (totalChanges <= 14) {
-    return 'Moderate number of turns along the way';
-  }
-
+  const total = (route.metrics?.turnCount ?? 0) + (route.metrics?.intersectionCount ?? 0);
+  if (total <= 8)  return 'Fewer turns and intersections';
+  if (total <= 14) return 'Moderate number of turns along the way';
   return 'More turns and intersections to manage';
 };
 
 const describeActivity = (route: Route) => {
-  const activityLevel = route.metrics?.activityLevel;
-  const stops = route.metrics?.nearbyStops ?? 0;
-  const mainRoadExposure = route.metrics?.mainRoadExposure;
-
-  if (activityLevel === 'high' || stops >= 6) {
-    return 'Passes more active public places';
-  }
-
-  if (mainRoadExposure === 'high') {
-    return 'Includes more main-road walking';
-  }
-
-  if (activityLevel === 'low') {
-    return 'Goes through quieter streets';
-  }
-
+  const level  = route.metrics?.activityLevel;
+  const stops  = route.metrics?.nearbyStops ?? 0;
+  const roads  = route.metrics?.mainRoadExposure;
+  if (level === 'high' || stops >= 6) return 'Passes more active public places';
+  if (roads === 'high')               return 'Includes more main-road walking';
+  if (level === 'low')                return 'Goes through quieter streets';
   return 'Mix of busier stretches and calmer blocks';
 };
 
-const buildObservation = (route: Route) => {
-  const observationOptions = [
-    describeDirectness(route),
-    describeComplexity(route),
-    describeActivity(route),
-  ];
-
-  return observationOptions.find(Boolean) ?? 'Route offers a steady walk to your destination';
-};
+const buildObservation = (route: Route) =>
+  [describeDirectness(route), describeComplexity(route), describeActivity(route)]
+    .find(Boolean) ?? 'Route offers a steady walk to your destination';
 
 const buildOverallComparison = (routes: Route[]) => {
-  if (routes.length === 0) {
-    return 'No route comparison available.';
-  }
-
-  const mostDirectRoute = [...routes].sort((a, b) => {
-    const score = { high: 3, medium: 2, low: 1 };
-    return (score[b.metrics?.directness ?? 'low'] - score[a.metrics?.directness ?? 'low']);
-  })[0];
-
-  const busiestRoute = [...routes].sort((a, b) => {
-    const score = { high: 3, medium: 2, low: 1 };
-    return (score[b.metrics?.activityLevel ?? 'low'] - score[a.metrics?.activityLevel ?? 'low']);
-  })[0];
-
-  const simplestRoute = [...routes].sort((a, b) => {
-    const aChanges = (a.metrics?.turnCount ?? 0) + (a.metrics?.intersectionCount ?? 0);
-    const bChanges = (b.metrics?.turnCount ?? 0) + (b.metrics?.intersectionCount ?? 0);
-    return aChanges - bChanges;
-  })[0];
-
-  return `${mostDirectRoute.name} is the most direct, ${busiestRoute.name} looks more active, and ${simplestRoute.name} should feel simpler to follow.`;
+  if (routes.length === 0) return 'No route comparison available.';
+  const score = (v: string | undefined) => ({ high: 3, medium: 2, low: 1 }[v ?? 'low'] ?? 1);
+  const mostDirect  = [...routes].sort((a, b) => score(b.metrics?.directness)  - score(a.metrics?.directness))[0];
+  const busiest     = [...routes].sort((a, b) => score(b.metrics?.activityLevel) - score(a.metrics?.activityLevel))[0];
+  const simplest    = [...routes].sort((a, b) =>
+    ((a.metrics?.turnCount ?? 0) + (a.metrics?.intersectionCount ?? 0)) -
+    ((b.metrics?.turnCount ?? 0) + (b.metrics?.intersectionCount ?? 0))
+  )[0];
+  return `${mostDirect.name} is the most direct, ${busiest.name} looks more active, and ${simplest.name} should feel simpler to follow.`;
 };
 
 const buildMockRouteSummary = (input: RouteSummaryInput): RouteSummaryResponse => ({
@@ -94,35 +52,37 @@ const buildMockRouteSummary = (input: RouteSummaryInput): RouteSummaryResponse =
   fallbackUsed: true,
 });
 
-export const buildPerplexityRouteSummaryPrompt = (input: RouteSummaryInput) => {
-  const routeLines = input.routes.map((route) => {
-    const metrics = route.metrics;
+// ── Gemini helpers ────────────────────────────────────────────────────────────
 
-    return [
-      `Route: ${route.name}`,
-      `ETA: ${route.eta}`,
-      `Distance: ${route.distance}`,
-      `Directness: ${metrics?.directness ?? 'unknown'}`,
-      `Turns: ${metrics?.turnCount ?? 0}`,
-      `Intersections: ${metrics?.intersectionCount ?? 0}`,
-      `Activity level: ${metrics?.activityLevel ?? 'unknown'}`,
-      `Main-road exposure: ${metrics?.mainRoadExposure ?? 'unknown'}`,
-      `Nearby stops/businesses: ${metrics?.nearbyStops ?? 0}`,
-    ].join('\n');
-  });
+const buildGeminiPrompt = (input: RouteSummaryInput): string => {
+  const routeLines = input.routes.map((route) => [
+    `routeId: ${route.id}`,
+    `Route: ${route.name}`,
+    `ETA: ${route.eta}`,
+    `Distance: ${route.distance}`,
+    `Directness: ${route.metrics?.directness ?? 'unknown'}`,
+    `Turns: ${route.metrics?.turnCount ?? 0}`,
+    `Intersections: ${route.metrics?.intersectionCount ?? 0}`,
+    `Activity level: ${route.metrics?.activityLevel ?? 'unknown'}`,
+    `Main-road exposure: ${route.metrics?.mainRoadExposure ?? 'unknown'}`,
+    `Nearby stops/businesses: ${route.metrics?.nearbyStops ?? 0}`,
+  ].join('\n'));
 
   return [
-    `You are writing short route observations for a SafeWalk ${input.mode} trip to ${input.destination}.`,
-    'Generate exactly 1 observation per route and 1 overall comparison.',
+    'Return strict JSON only. No markdown, no extra prose.',
+    'Schema: {"observations":[{"routeId":"string","observation":"string"}],"overallComparison":"string"}',
+    'Each routeId MUST exactly match the routeId value given in the input.',
     'Do not call any route safe or unsafe.',
-    'Focus on directness, activity level, and complexity.',
-    'Keep each observation under 14 words.',
+    `You are writing short route observations for a SafeWalk ${input.mode} trip to ${input.destination}.`,
+    'Generate exactly 1 observation per route (under 14 words) and 1 overall comparison.',
     '',
     routeLines.join('\n\n'),
   ].join('\n');
 };
 
-const parsePerplexityContent = (content: string): Pick<RouteSummaryResponse, 'observations' | 'overallComparison'> | null => {
+const parseGeminiResponse = (
+  content: string,
+): Pick<RouteSummaryResponse, 'observations' | 'overallComparison'> | null => {
   const normalized = content
     .replace(/^```json\s*/i, '')
     .replace(/^```\s*/i, '')
@@ -140,112 +100,90 @@ const parsePerplexityContent = (content: string): Pick<RouteSummaryResponse, 'ob
     }
 
     const observations = parsed.observations
-      .filter((item): item is { routeId: string; observation: string } => (
+      .filter((item): item is { routeId: string; observation: string } =>
         typeof item.routeId === 'string' && typeof item.observation === 'string'
-      ))
-      .map((item) => ({
-        routeId: item.routeId,
-        observation: item.observation.trim(),
-      }));
+      )
+      .map((item) => ({ routeId: item.routeId, observation: item.observation.trim() }));
 
-    if (observations.length === 0) {
-      return null;
-    }
-
-    return {
-      observations,
-      overallComparison: parsed.overallComparison.trim(),
-    };
+    return observations.length > 0
+      ? { observations, overallComparison: parsed.overallComparison.trim() }
+      : null;
   } catch {
     return null;
   }
 };
 
+// ── Public API ────────────────────────────────────────────────────────────────
+
 export const generateRouteSummary = async (
-  input: RouteSummaryInput
+  input: RouteSummaryInput,
 ): Promise<RouteSummaryResponse> => {
-  const apiKey = process.env.PERPLEXITY_API_KEY;
+  // Works both server-side (GEMINI_API_KEY) and client-side (EXPO_PUBLIC_GEMINI_API_KEY)
+  const apiKey =
+    process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
     return buildMockRouteSummary(input);
   }
 
+  const model = process.env.EXPO_PUBLIC_GEMINI_MODEL ?? process.env.GEMINI_MODEL ?? 'gemini-2.0-flash';
+  const url   = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
   try {
-    const response = await fetch('https://api.perplexity.ai/v1/sonar', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
+    const response = await fetch(url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: process.env.PERPLEXITY_MODEL || 'sonar',
-        messages: [
-          {
-            role: 'system',
-            content:
-              'Return strict JSON only. No markdown, no prose outside JSON. ' +
-              'Schema: {"observations":[{"routeId":"string","observation":"string"}],"overallComparison":"string"}. ' +
-              'Avoid calling any route safe or unsafe.',
-          },
-          {
-            role: 'user',
-            content: buildPerplexityRouteSummaryPrompt(input),
-          },
-        ],
-        temperature: 0.2,
+        contents:         [{ parts: [{ text: buildGeminiPrompt(input) }] }],
+        generationConfig: { temperature: 0.2 },
       }),
     });
 
     if (!response.ok) {
+      console.warn('[SafeWalk] Gemini route summary failed:', response.status);
       return buildMockRouteSummary(input);
     }
 
     const data = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
     };
-    const content = data.choices?.[0]?.message?.content;
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!content) {
+      console.warn('[SafeWalk] Gemini returned empty content');
       return buildMockRouteSummary(input);
     }
 
-    const parsed = parsePerplexityContent(content);
-
+    const parsed = parseGeminiResponse(content);
     if (!parsed) {
+      console.warn('[SafeWalk] Gemini response could not be parsed:', content.slice(0, 200));
       return buildMockRouteSummary(input);
     }
 
-    const validRouteIds = new Set(input.routes.map((route) => route.id));
-    const observations = parsed.observations.filter((item) => validRouteIds.has(item.routeId));
+    const validIds     = new Set(input.routes.map((r) => r.id));
+    const observations = parsed.observations.filter((o) => validIds.has(o.routeId));
 
     if (observations.length === 0) {
+      console.warn('[SafeWalk] Gemini routeIds did not match input ids');
       return buildMockRouteSummary(input);
     }
 
-    return {
-      provider: 'perplexity',
-      observations,
-      overallComparison: parsed.overallComparison,
-      fallbackUsed: false,
-    };
-  } catch {
+    console.log('[SafeWalk] Gemini route insights OK');
+    return { provider: 'gemini', observations, overallComparison: parsed.overallComparison, fallbackUsed: false };
+  } catch (err) {
+    console.warn('[SafeWalk] Gemini fetch error:', err);
     return buildMockRouteSummary(input);
   }
 };
 
-export const generateMockRouteSummary = (input: RouteSummaryInput): RouteSummaryResponse => {
-  return buildMockRouteSummary(input);
-};
+export const generateMockRouteSummary = (input: RouteSummaryInput): RouteSummaryResponse =>
+  buildMockRouteSummary(input);
 
 export const applyRouteObservations = (input: RouteSummaryInput): Route[] => {
-  const summary = buildMockRouteSummary(input);
-  const observationMap = new Map(
-    summary.observations.map((item) => [item.routeId, item.observation])
-  );
-
+  const summary        = buildMockRouteSummary(input);
+  const observationMap = new Map(summary.observations.map((o) => [o.routeId, o.observation]));
   return input.routes.map((route) => ({
     ...route,
-    observation:
-      observationMap.get(route.id) ?? route.observation ?? 'Route details unavailable',
+    observation: observationMap.get(route.id) ?? route.observation ?? 'Route details unavailable',
   }));
 };
