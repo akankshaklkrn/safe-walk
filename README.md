@@ -24,9 +24,9 @@ The product is built around one idea: safety should not begin only after the use
       <strong>Home</strong>
     </td>
     <td align="center">
-      <img src="Screenshots/IMG_9848.PNG" alt="Escalation Modal" width="220" />
+      <img src="Screenshots/IMG_9843.PNG" alt="Route Selection Screen" width="220" />
       <br />
-      <strong>Escalation Flow</strong>
+      <strong>Choose Route</strong>
     </td>
   </tr>
   <tr>
@@ -34,6 +34,11 @@ The product is built around one idea: safety should not begin only after the use
       <img src="Screenshots/IMG_9843.PNG" alt="Route Selection Screen" width="220" />
       <br />
       <strong>Choose Route</strong>
+    </td>
+    <td align="center">
+      <img src="Screenshots/IMG_9848.PNG" alt="Escalation Modal" width="220" />
+      <br />
+      <strong>Escalation Flow</strong>
     </td>
     <td align="center">
       <img src="Screenshots/IMG_9844.PNG" alt="Active Trip Screen" width="220" />
