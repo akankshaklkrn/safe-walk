@@ -30,6 +30,7 @@ interface AuthContextValue {
   loginWithEmail: (input: { email: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
   saveProfile: (input: Partial<Pick<UserProfile, 'name' | 'safeWord' | 'photoURL'>>) => Promise<void>;
+  saveRecentSearch: (destination: string) => Promise<void>;
   saveEmergencyContacts: (contacts: EmergencyContact[]) => Promise<void>;
   refreshProfile: (uid?: string) => Promise<void>;
 }
@@ -160,13 +161,14 @@ function validateContacts(contacts: EmergencyContact[]) {
   return null;
 }
 
-function buildProfile(user: User, safeWord?: string): UserProfile {
+function buildProfile(user: User, safeWord?: string, recentSearches: string[] = []): UserProfile {
   return {
     uid: user.uid,
     name: user.displayName || '',
     email: user.email || '',
     photoURL: user.photoURL,
     safeWord,
+    recentSearches,
   };
 }
 
@@ -192,6 +194,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const profileSnap = await getDoc(profileRef);
       const contactsSnap = await getDocs(collection(db, 'users', targetUid, 'emergencyContacts'));
       const safeWord = profileSnap.exists() ? (profileSnap.data().safeWord as string | undefined) : undefined;
+      const recentSearches = profileSnap.exists()
+        ? Array.isArray(profileSnap.data().recentSearches)
+          ? (profileSnap.data().recentSearches as string[]).filter((search) => typeof search === 'string')
+          : []
+        : [];
       const nextProfile =
         profileSnap.exists() && fallbackUser
           ? {
@@ -200,9 +207,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               email: (profileSnap.data().email as string | undefined) || fallbackUser.email || '',
               photoURL: (profileSnap.data().photoURL as string | undefined) || fallbackUser.photoURL,
               safeWord,
+              recentSearches,
             }
           : fallbackUser
-            ? buildProfile(fallbackUser, safeWord)
+            ? buildProfile(fallbackUser, safeWord, recentSearches)
             : null;
 
       setProfile(nextProfile);
@@ -256,6 +264,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         photoURL: result.user.photoURL || null,
         safeWord: '',
+        recentSearches: [],
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -383,6 +392,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const saveRecentSearch = async (destination: string) => {
+    if (!auth.currentUser) {
+      return;
+    }
+
+    const normalized = destination.trim();
+    if (!normalized) {
+      return;
+    }
+
+    const nextRecentSearches = [
+      normalized,
+      ...(profile?.recentSearches ?? []).filter((search) => search.trim().toLowerCase() !== normalized.toLowerCase()),
+    ].slice(0, 2);
+
+    try {
+      setAuthError(null);
+      await setDoc(
+        doc(db, 'users', auth.currentUser.uid),
+        {
+          recentSearches: nextRecentSearches,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      setProfile((prev) =>
+        prev
+          ? { ...prev, recentSearches: nextRecentSearches }
+          : prev
+      );
+    } catch (error) {
+      setAuthError(mapFirestoreError(error));
+    }
+  };
+
   const value = useMemo<AuthContextValue>(
     () => ({
       authUser,
@@ -394,6 +439,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loginWithEmail,
       logout,
       saveProfile,
+      saveRecentSearch,
       saveEmergencyContacts,
       refreshProfile,
     }),

@@ -22,6 +22,7 @@ export interface UserProfile {
   email: string;
   photoURL?: string | null;
   safeWord?: string;
+  recentSearches?: string[];
 }
 
 export interface TripSetupData {

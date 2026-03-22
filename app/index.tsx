@@ -19,7 +19,7 @@ import { CommuteMode } from '../types';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { authUser, loading, logout, profile, saveProfile } = useAuthContext();
+  const { authUser, loading, logout, profile, saveProfile, saveRecentSearch } = useAuthContext();
   const [destination, setDestination] = useState('');
   const [mode, setMode] = useState<CommuteMode>('walking');
   const [safeWord, setSafeWord] = useState('');
@@ -71,16 +71,19 @@ export default function HomeScreen() {
       return;
     }
 
+    const normalizedDestination = destination.trim();
     const selectedSafeWord = safeWordMode === 'stored' ? profile?.safeWord ?? '' : safeWord.trim();
 
     if (safeWordMode === 'new' && selectedSafeWord) {
       void saveProfile({ safeWord: selectedSafeWord });
     }
 
+    void saveRecentSearch(normalizedDestination);
+
     setShowDropdown(false);
     router.push({
       pathname: '/safety-setup',
-      params: { destination, mode, safeWord: selectedSafeWord },
+      params: { destination: normalizedDestination, mode, safeWord: selectedSafeWord },
     });
   };
 
@@ -154,6 +157,29 @@ export default function HomeScreen() {
             autoCapitalize="none"
             autoCorrect={false}
           />
+          {profile?.recentSearches?.length ? (
+            <View style={styles.recentSearchesSection}>
+              <Text style={styles.recentSearchesLabel}>Recent searches</Text>
+              <View style={styles.recentSearchesRow}>
+                {profile.recentSearches.slice(0, 2).map((search) => (
+                  <TouchableOpacity
+                    key={search}
+                    style={styles.recentSearchChip}
+                    onPress={() => {
+                      setDestination(search);
+                      setSuggestions([]);
+                      setShowDropdown(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.recentSearchChipText} numberOfLines={1}>
+                      {search}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          ) : null}
           {showDropdown &&
             suggestions.map((item, index) => (
               <TouchableOpacity
@@ -347,6 +373,33 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
     borderBottomWidth: 0,
+  },
+  recentSearchesSection: {
+    marginTop: 12,
+    gap: 8,
+  },
+  recentSearchesLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textLight,
+  },
+  recentSearchesRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  recentSearchChip: {
+    flex: 1,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: '#F3F0FF',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  recentSearchChipText: {
+    fontSize: 13,
+    color: colors.primary,
+    fontWeight: '600',
   },
   suggestionItem: {
     flexDirection: 'row',
