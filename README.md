@@ -72,8 +72,46 @@ npm run web      # Web browser
 - [x] Mode-specific routes
 - [x] Mode display across screens
 
-### 📋 Future Milestones
-- Milestone 5: Check-in Modal + Status Changes
-- Milestone 6: Escalation Alert
-- Milestone 7: Trip Complete Screen
-- Milestone 8: Polish & Refinement
+### ✅ Milestone 5: Check-in Modal + Status Changes
+- [x] Check-in modal with timer
+- [x] User response handling
+- [x] Dynamic safety status updates
+- [x] AI message responses
+
+### ✅ Milestone 6: Escalation Alert
+- [x] Escalation alert modal
+- [x] 30-second countdown timer
+- [x] Auto-escalation on timeout
+- [x] Emergency contact notification
+
+### ✅ Milestone 7: Trip Complete Screen
+- [x] Trip summary with stats
+- [x] Safety report
+- [x] Feedback section
+- [x] Navigation to home
+
+### ✅ Milestone 8: Polish & Refinement
+- [x] Fixed SafeAreaView deprecation
+- [x] Improved UI consistency
+- [x] Production-ready code
+
+## Features
+
+### Core Functionality
+- 🏠 **Home Screen**: Commute mode selection (Walking/Car) and destination input
+- 🗺️ **Route Selection**: Display mode-specific routes with AI observations
+- 🚶 **Active Trip**: Real-time monitoring with AI companion
+- ✅ **Trip Complete**: Summary and feedback
+
+### Safety Features
+- 🟢 **Safety Status Indicator**: Real-time status (Safe/Uncertain/Risk)
+- 🆘 **SOS Button**: Instant emergency alert
+- 🤖 **AI Companion**: Conversational monitoring and support
+- ⏰ **Check-in System**: Periodic safety checks
+- 🚨 **Escalation Alert**: Auto-escalation with countdown timer
+
+### UI/UX
+- Clean, modern design with consistent color palette
+- Smooth navigation with Expo Router
+- Modal-based interactions
+- Responsive layouts for mobile and web

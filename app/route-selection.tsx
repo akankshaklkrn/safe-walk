@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, SafeAreaView, ActivityIndicator,
+  StyleSheet, ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { colors } from '../constants/colors';
+import { generateRouteSummary } from '../services/p3';
 import RouteCard from '../components/RouteCard';
 import type { Route, CommuteMode } from '../types';
 import {
@@ -15,7 +17,11 @@ import {
 } from '../services/api';
 
 export default function RouteSelectionScreen() {
-  const { destination, mode } = useLocalSearchParams<{ destination: string; mode: CommuteMode }>();
+  const { destination, mode, safeWord } = useLocalSearchParams<{
+    destination: string;
+    mode: CommuteMode;
+    safeWord: string;
+  }>();
   const router = useRouter();
 
   // Routes are stored as display Route (for RouteCard) + raw RouteOptionRaw (for startTrip)
@@ -24,6 +30,13 @@ export default function RouteSelectionScreen() {
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState<string | null>(null);
   const [starting, setStarting]           = useState(false);
+
+  // P3 AI-generated route comparison summary (re-derived whenever routes load)
+  const routeSummary = generateRouteSummary({
+    destination: destination || 'your destination',
+    mode: mode ?? 'walking',
+    routes,
+  });
 
   // Fetch real routes from backend on mount
   useEffect(() => {
@@ -70,6 +83,7 @@ export default function RouteSelectionScreen() {
           startLat:        String(session.startLocation.lat),
           startLng:        String(session.startLocation.lng),
           routeName:       selectedRoute.name,
+          safeWord:        safeWord ?? '',
         },
       });
     } catch (e) {
@@ -90,6 +104,7 @@ export default function RouteSelectionScreen() {
           <Text style={styles.modeIndicator}>
             {mode === 'walking' ? '🚶 Walking' : '🚗 Driving'}
           </Text>
+          <Text style={styles.comparisonText}>{routeSummary.overallComparison}</Text>
         </View>
       </View>
 
@@ -168,6 +183,7 @@ const styles = StyleSheet.create({
   title:           { fontSize: 28, fontWeight: 'bold', color: colors.text },
   destination:     { fontSize: 16, color: colors.textLight },
   modeIndicator:   { fontSize: 14, color: colors.primary, fontWeight: '600', marginTop: 4 },
+  comparisonText:  { fontSize: 14, color: colors.textLight, lineHeight: 20, marginTop: 8 },
   scrollView:      { flex: 1 },
   scrollContent:   { padding: 24 },
   footer:          { padding: 24, paddingBottom: 32, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.white },

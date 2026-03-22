@@ -17,6 +17,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const [destination, setDestination] = useState('');
   const [mode, setMode]               = useState<CommuteMode>('walking');
+  const [safeWord, setSafeWord]       = useState('');
   const [backendStatus, setBackendStatus] = useState<'checking' | 'ok' | 'offline'>('checking');
 
   // Ping the backend on mount so you can see immediately if it's reachable
@@ -27,8 +28,8 @@ export default function HomeScreen() {
   const handleFindRoutes = () => {
     if (destination.trim()) {
       router.push({
-        pathname: '/route-selection',
-        params: { destination, mode },
+        pathname: '/safety-setup',
+        params: { destination, mode, safeWord },
       });
     }
   };
@@ -101,6 +102,22 @@ export default function HomeScreen() {
             autoCapitalize="none"
             autoCorrect={false}
           />
+        </View>
+
+        <View style={styles.inputSection}>
+          <Text style={styles.label}>Set a safe word</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Optional phrase only you would know"
+            placeholderTextColor={colors.textLight}
+            value={safeWord}
+            onChangeText={setSafeWord}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Text style={styles.helperText}>
+            If this word comes up during the conversation, SafeWalk will escalate immediately.
+          </Text>
         </View>
 
         <TouchableOpacity
@@ -221,6 +238,12 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     fontSize: 16,
     color: colors.text,
+  },
+  helperText: {
+    fontSize: 13,
+    color: colors.textLight,
+    lineHeight: 18,
+    marginTop: 8,
   },
   button: {
     backgroundColor: colors.primary,
