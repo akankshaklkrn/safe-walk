@@ -168,49 +168,52 @@ This keeps the route summary believable, deterministic, and demo-safe.
 
 ## Screenshots
 
-### Authentication
-
-**Login**
-
-![Login Screen](Screenshots/IMG_5880.PNG)
-
-**Sign Up**
-
-![Sign Up Screen](Screenshots/IMG_5870.PNG)
-
-### Trip Setup
-
-**Home**
-
-![Home Screen](Screenshots/IMG_5879.PNG)
-
-**Safety Setup**
-
-![Safety Setup Screen](Screenshots/IMG_5878.PNG)
-
-**Route Selection**
-
-![Route Selection Screen](Screenshots/IMG_5877.PNG)
-
-### Live Trip Experience
-
-**Active Trip**
-
-![Active Trip Screen](Screenshots/IMG_5875.PNG)
-
-**Escalation Modal**
-
-![Escalation Modal](Screenshots/IMG_5874.PNG)
-
-### Completion and Feedback
-
-**Trip Complete**
-
-![Trip Complete Screen](Screenshots/IMG_5876.PNG)
-
-**Trip Feedback**
-
-![Trip Feedback Screen](Screenshots/IMG_5873.PNG)
+<table>
+  <tr>
+    <td align="center">
+      <img src="Screenshots/IMG_5880.PNG" alt="Login Screen" width="220" />
+      <br />
+      <strong>Login</strong>
+    </td>
+    <td align="center">
+      <img src="Screenshots/IMG_5870.PNG" alt="Sign Up Screen" width="220" />
+      <br />
+      <strong>Sign Up</strong>
+    </td>
+    <td align="center">
+      <img src="Screenshots/IMG_5879.PNG" alt="Home Screen" width="220" />
+      <br />
+      <strong>Home</strong>
+    </td>
+    <td align="center">
+      <img src="Screenshots/IMG_5878.PNG" alt="Safety Setup Screen" width="220" />
+      <br />
+      <strong>Safety Setup</strong>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="Screenshots/IMG_5877.PNG" alt="Route Selection Screen" width="220" />
+      <br />
+      <strong>Route Selection</strong>
+    </td>
+    <td align="center">
+      <img src="Screenshots/IMG_5875.PNG" alt="Active Trip Screen" width="220" />
+      <br />
+      <strong>Active Trip</strong>
+    </td>
+    <td align="center">
+      <img src="Screenshots/IMG_5874.PNG" alt="Escalation Modal" width="220" />
+      <br />
+      <strong>Escalation</strong>
+    </td>
+    <td align="center">
+      <img src="Screenshots/IMG_5873.PNG" alt="Trip Feedback Screen" width="220" />
+      <br />
+      <strong>Trip Feedback</strong>
+    </td>
+  </tr>
+</table>
 
 ## Setup
 
