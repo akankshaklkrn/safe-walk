@@ -19,6 +19,7 @@ import SOSButton from '../components/SOSButton';
 import TripInfoBar from '../components/TripInfoBar';
 import AICompanionPanel from '../components/AICompanionPanel';
 import EscalationAlert from '../components/EscalationAlert';
+import { useAuthContext } from '../context/AuthContext';
 import { getMockAIMessages, type AIMessage } from '../data/mockMessages';
 import { useTripConversation } from '../hooks/useTripConversation';
 import { containsSafeWord } from '../services/p3';
@@ -54,6 +55,7 @@ export default function ActiveTripScreen() {
     checkInFrequency,
     isSilentMode,
     routeDeviationAlerts,
+    originLabel,
     trustedContactEmail,
   } = useLocalSearchParams<{
     tripId: string;
@@ -71,8 +73,10 @@ export default function ActiveTripScreen() {
     checkInFrequency: CheckInFrequency;
     isSilentMode: string;
     routeDeviationAlerts: string;
+    originLabel: string;
     trustedContactEmail: string;
   }>();
+  const { profile, authUser } = useAuthContext();
 
   const [safetyStatus, setSafetyStatus] = useState<SafetyStatus>('safe');
   const [escalated, setEscalated] = useState(false);
@@ -177,11 +181,14 @@ export default function ActiveTripScreen() {
     const payload = {
       userId: `trip-${tripId || 'unknown'}`,
       tripId: tripId || 'unknown-trip',
+      userName: profile?.name || authUser?.displayName || undefined,
       location: activeLocation,
       timestamp: new Date().toISOString(),
       alertType,
       message,
       mode: (mode === 'car' ? 'car' : 'walking') as CommuteMode,
+      originLabel: originLabel || undefined,
+      destinationLabel: destinationName,
       trustedContactEmail,
     };
 

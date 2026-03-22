@@ -125,6 +125,7 @@ export default function RouteSelectionScreen() {
           checkInFrequency: checkInFrequency ?? tripSetupData?.checkInFrequency ?? 'smart',
           isSilentMode:    isSilentMode ?? String(tripSetupData?.isSilentMode ?? false),
           routeDeviationAlerts: routeDeviationAlerts ?? String(tripSetupData?.routeDeviationAlerts ?? true),
+          originLabel: tripSetupData?.currentLocation?.address ?? '',
           trustedContactEmail: session.trustedContact.email,
         },
       });

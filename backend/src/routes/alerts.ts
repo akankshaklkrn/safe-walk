@@ -7,20 +7,26 @@ router.post('/sos', async (req: Request, res: Response) => {
   const {
     userId,
     tripId,
+    userName,
     location,
     timestamp,
     alertType,
     message,
     mode,
+    originLabel,
+    destinationLabel,
     trustedContactEmail,
   } = req.body as {
     userId?: string;
     tripId?: string;
+    userName?: string;
     location?: { lat?: number; lng?: number };
     timestamp?: string;
     alertType?: string;
     message?: string;
     mode?: 'walking' | 'car';
+    originLabel?: string;
+    destinationLabel?: string;
     trustedContactEmail?: string;
   };
 
@@ -43,12 +49,15 @@ router.post('/sos', async (req: Request, res: Response) => {
     const result = await sendSosEmail({
       userId: userId ?? 'unknown-user',
       tripId: tripId ?? 'unknown-trip',
+      userName: typeof userName === 'string' ? userName : undefined,
       trustedContactEmail,
       location: { lat: location.lat, lng: location.lng },
       timestamp: timestamp ?? new Date().toISOString(),
       alertType: alertType ?? 'sos',
       message: message ?? 'Emergency alert triggered from SafeWalk.',
       mode: mode === 'car' ? 'car' : 'walking',
+      originLabel: typeof originLabel === 'string' ? originLabel : undefined,
+      destinationLabel: typeof destinationLabel === 'string' ? destinationLabel : undefined,
     });
 
     return res.status(200).json({
