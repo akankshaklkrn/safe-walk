@@ -16,9 +16,6 @@
       "supportsTablet": true,
       "bitcode": false,
       "bundleIdentifier": "com.anonymous.SafeWalk",
-      "config": {
-        "googleMapsApiKey": "AIzaSyCPUeVUUrZ9OfseEbfJ1qcqkyCyoA4r_q4"
-      },
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true,
@@ -41,11 +38,6 @@
       }
     },
     "android": {
-      "config": {
-        "googleMaps": {
-          "apiKey": "AIzaSyCPUeVUUrZ9OfseEbfJ1qcqkyCyoA4r_q4"
-        }
-      },
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
