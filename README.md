@@ -168,20 +168,49 @@ This keeps the route summary believable, deterministic, and demo-safe.
 
 ## Screenshots
 
-The screenshots below reflect the current app experience used during development and demo prep.
+### Authentication
 
-### Included Screens in Current Build
-- Login screen
-- Sign up screen
-- Home screen
-- Safety setup
-- Route selection
-- Active trip
-- Escalation confirmation modal
-- Trip complete
-- Trip feedback summary
+**Login**
 
-If you want image files embedded directly inside this README, add them under `docs/screenshots/` and update this section with the file links. The screenshots you shared in chat were not available as repo files, so this README includes the gallery structure and captions but does not hardcode broken image paths.
+![Login Screen](Screenshots/IMG_5880.PNG)
+
+**Sign Up**
+
+![Sign Up Screen](Screenshots/IMG_5870.PNG)
+
+### Trip Setup
+
+**Home**
+
+![Home Screen](Screenshots/IMG_5879.PNG)
+
+**Safety Setup**
+
+![Safety Setup Screen](Screenshots/IMG_5878.PNG)
+
+**Route Selection**
+
+![Route Selection Screen](Screenshots/IMG_5877.PNG)
+
+### Live Trip Experience
+
+**Active Trip**
+
+![Active Trip Screen](Screenshots/IMG_5875.PNG)
+
+**Escalation Modal**
+
+![Escalation Modal](Screenshots/IMG_5874.PNG)
+
+### Completion and Feedback
+
+**Trip Complete**
+
+![Trip Complete Screen](Screenshots/IMG_5876.PNG)
+
+**Trip Feedback**
+
+![Trip Feedback Screen](Screenshots/IMG_5873.PNG)
 
 ## Setup
 
