@@ -18,6 +18,11 @@
       "bundleIdentifier": "com.anonymous.SafeWalk"
     },
     "android": {
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCPUeVUUrZ9OfseEbfJ1qcqkyCyoA4r_q4"
+        }
+      },
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",

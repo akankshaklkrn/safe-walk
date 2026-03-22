@@ -41,6 +41,9 @@ export default function ActiveTripScreen() {
     distanceMeters,
     startLat,
     startLng,
+    endLat,
+    endLng,
+    polyline,
     routeName,
     safeWord,
   } = useLocalSearchParams<{
@@ -51,6 +54,9 @@ export default function ActiveTripScreen() {
     distanceMeters: string;
     startLat: string;
     startLng: string;
+    endLat: string;
+    endLng: string;
+    polyline: string;
     routeName: string;
     safeWord: string;
   }>();
@@ -74,6 +80,13 @@ export default function ActiveTripScreen() {
       (routeName as string) || 'your selected route',
       'safe',
     )
+  );
+
+  // ── Live map position ────────────────────────────────────────────────────
+  const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(
+    startLat && startLng
+      ? { lat: parseFloat(startLat), lng: parseFloat(startLng) }
+      : null,
   );
 
   const escalatedRef        = useRef(escalated);
@@ -179,6 +192,7 @@ export default function ActiveTripScreen() {
       try {
         const loc = await getCurrentLocation();
         fallbackLoc.current = loc;
+        setCurrentLocation(loc);
 
         const result = await updateLocation(tripId, loc.lat, loc.lng);
 
@@ -371,7 +385,14 @@ export default function ActiveTripScreen() {
 
       {/* ── Map ─────────────────────────────────────────────────────────── */}
       <View style={styles.mapContainer}>
-        <MapView />
+        <MapView
+          userLocation={currentLocation}
+          destination={endLat && endLng
+            ? { lat: parseFloat(endLat), lng: parseFloat(endLng) }
+            : null}
+          routePolyline={typeof polyline === 'string' ? polyline : ''}
+          safetyStatus={safetyStatus}
+        />
       </View>
 
       {/* ── AI companion ─────────────────────────────────────────────────── */}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,26 +7,52 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors } from '../constants/colors';
 import { CommuteMode } from '../types';
-import { checkHealth } from '../services/api';
+import { checkHealth, getPlaceSuggestions, type PlaceSuggestion } from '../services/api';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [destination, setDestination] = useState('');
-  const [mode, setMode]               = useState<CommuteMode>('walking');
-  const [safeWord, setSafeWord]       = useState('');
+  const [destination, setDestination]   = useState('');
+  const [mode, setMode]                 = useState<CommuteMode>('walking');
+  const [safeWord, setSafeWord]         = useState('');
   const [backendStatus, setBackendStatus] = useState<'checking' | 'ok' | 'offline'>('checking');
+  const [suggestions, setSuggestions]   = useState<PlaceSuggestion[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Ping the backend on mount so you can see immediately if it's reachable
   useEffect(() => {
     checkHealth().then((ok) => setBackendStatus(ok ? 'ok' : 'offline'));
   }, []);
 
+  const handleDestinationChange = (text: string) => {
+    setDestination(text);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (text.length < 2) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      const results = await getPlaceSuggestions(text);
+      setSuggestions(results);
+      setShowDropdown(results.length > 0);
+    }, 300);
+  };
+
+  const handleSelectSuggestion = (suggestion: PlaceSuggestion) => {
+    setDestination(suggestion.description);
+    setSuggestions([]);
+    setShowDropdown(false);
+    Keyboard.dismiss();
+  };
+
   const handleFindRoutes = () => {
     if (destination.trim()) {
+      setShowDropdown(false);
       router.push({
         pathname: '/safety-setup',
         params: { destination, mode, safeWord },
@@ -90,18 +116,36 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* ── Destination input ─────────────────────────────────────── */}
+        {/* ── Destination input with autocomplete ───────────────────── */}
         <View style={styles.inputSection}>
           <Text style={styles.label}>Where are you going?</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, showDropdown && styles.inputOpen]}
             placeholder="Enter destination"
             placeholderTextColor={colors.textLight}
             value={destination}
-            onChangeText={setDestination}
+            onChangeText={handleDestinationChange}
+            onFocus={() => suggestions.length > 0 && setShowDropdown(true)}
             autoCapitalize="none"
             autoCorrect={false}
           />
+          {showDropdown && suggestions.map((item, index) => (
+            <TouchableOpacity
+              key={item.placeId}
+              style={[
+                styles.suggestionItem,
+                index === 0 && styles.suggestionItemFirst,
+                index === suggestions.length - 1 && styles.suggestionItemLast,
+              ]}
+              onPress={() => handleSelectSuggestion(item)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.suggestionIcon}>📍</Text>
+              <Text style={styles.suggestionText} numberOfLines={2}>
+                {item.description}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         <View style={styles.inputSection}>
@@ -244,6 +288,41 @@ const styles = StyleSheet.create({
     color: colors.textLight,
     lineHeight: 18,
     marginTop: 8,
+  },
+  inputOpen: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderBottomWidth: 0,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    gap: 10,
+    backgroundColor: colors.white,
+    borderLeftWidth: 2,
+    borderRightWidth: 2,
+    borderBottomWidth: 1,
+    borderColor: colors.border,
+  },
+  suggestionItemFirst: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  suggestionItemLast: {
+    borderBottomWidth: 2,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+  },
+  suggestionIcon: {
+    fontSize: 15,
+  },
+  suggestionText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
   },
   button: {
     backgroundColor: colors.primary,

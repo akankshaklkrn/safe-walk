@@ -63,6 +63,7 @@ router.post('/', async (req: Request, res: Response) => {
       const statusMap: Record<string, number> = {
         DESTINATION_NOT_FOUND: 404,
         NO_ROUTES_FOUND:       404,
+        ROUTE_TOO_LONG:        422,
         INVALID_COORDINATES:   400,
         API_FAILURE:           502,
       };

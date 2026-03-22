@@ -1,6 +1,11 @@
+import * as Location from 'expo-location';
 import type { CommuteMode, Route, SafetyStatus } from '../types';
 
-const API_BASE = 'http://localhost:3000';
+// On a phone, localhost refers to the phone itself, not your PC.
+// Set EXPO_PUBLIC_API_URL in your .env to your PC's LAN IP, e.g.:
+//   EXPO_PUBLIC_API_URL=http://192.168.1.10:3000
+// Leave unset (or keep 'http://localhost:3000') for browser/web testing.
+const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 // ---------------------------------------------------------------------------
 // Backend response shapes — mirrors backend/src/types/ without a compile dep
@@ -120,31 +125,87 @@ export function toDisplayRoute(raw: RouteOptionRaw): Route & { _raw: RouteOption
 }
 
 // ---------------------------------------------------------------------------
-// Device location — tries GPS, falls back to lower Manhattan
+// Device location — uses expo-location on native, navigator.geolocation on web
 // ---------------------------------------------------------------------------
-export function getCurrentLocation(): Promise<{ lat: number; lng: number }> {
+export async function getCurrentLocation(): Promise<{ lat: number; lng: number }> {
   const fallback = { lat: 40.7128, lng: -74.006 };
-  return new Promise((resolve) => {
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        ()    => resolve(fallback),
-        { timeout: 5000 },
-      );
-    } else {
-      resolve(fallback);
+
+  try {
+    // Request foreground location permission
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      console.warn('[SafeWalk] Location permission denied — using fallback coords');
+      return fallback;
     }
-  });
+
+    const pos = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    });
+    return { lat: pos.coords.latitude, lng: pos.coords.longitude };
+  } catch (err) {
+    console.warn('[SafeWalk] expo-location failed — using fallback coords', err);
+    return fallback;
+  }
 }
 
 // ---------------------------------------------------------------------------
 // API calls
 // ---------------------------------------------------------------------------
 
+/** Decodes a Google encoded polyline string into an array of lat/lng points. */
+export function decodePolyline(encoded: string): Array<{ lat: number; lng: number }> {
+  const points: Array<{ lat: number; lng: number }> = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+  while (index < encoded.length) {
+    let shift = 0; let result = 0; let byte: number;
+    do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : result >> 1;
+    shift = 0; result = 0;
+    do { byte = encoded.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : result >> 1;
+    points.push({ lat: lat / 1e5, lng: lng / 1e5 });
+  }
+  return points;
+}
+
+export interface PlaceSuggestion {
+  description: string;
+  placeId: string;
+}
+
+/** Fetch place autocomplete suggestions for a partial address string */
+export async function getPlaceSuggestions(input: string): Promise<PlaceSuggestion[]> {
+  if (!input || input.length < 2) return [];
+  const url = `${API_BASE}/places/autocomplete?input=${encodeURIComponent(input)}`;
+  console.log('[SafeWalk] Autocomplete fetch →', url);
+  try {
+    const res = await fetch(url, { signal: timeoutSignal(8000) });
+    if (!res.ok) {
+      console.warn('[SafeWalk] Autocomplete non-OK status:', res.status);
+      return [];
+    }
+    const data = await res.json() as { predictions: PlaceSuggestion[] };
+    console.log('[SafeWalk] Autocomplete results:', data.predictions?.length ?? 0);
+    return data.predictions ?? [];
+  } catch (err) {
+    console.warn('[SafeWalk] Autocomplete fetch failed:', err);
+    return [];
+  }
+}
+
+/** Creates an AbortSignal that times out after ms milliseconds (Hermes-compatible). */
+function timeoutSignal(ms: number): AbortSignal {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
 /** Ping the backend health endpoint — returns true if reachable */
 export async function checkHealth(): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(4000) });
+    const res = await fetch(`${API_BASE}/health`, { signal: timeoutSignal(4000) });
     return res.ok;
   } catch {
     return false;

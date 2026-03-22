@@ -135,6 +135,15 @@ export async function fetchRoutes(
       );
     }
 
+    if (status === 'MAX_ROUTE_LENGTH_EXCEEDED') {
+      throw new MapsError(
+        'ROUTE_TOO_LONG',
+        mode === 'walking'
+          ? 'That destination is too far to walk. Please try a closer location or switch to driving mode.'
+          : 'That destination is too far for this mode. Please try a closer location.',
+      );
+    }
+
     if (status !== Status.OK || routes.length === 0) {
       throw new MapsError(
         'NO_ROUTES_FOUND',
@@ -263,6 +272,16 @@ export async function getRouteOptions(
     return routes;
 
   } catch (err) {
+    // Never fall back to mock for user-facing errors like ROUTE_TOO_LONG or
+    // DESTINATION_NOT_FOUND — mock data would silently show wrong fake routes.
+    if (err instanceof MapsError && (
+      err.code === 'ROUTE_TOO_LONG' ||
+      err.code === 'DESTINATION_NOT_FOUND' ||
+      err.code === 'INVALID_COORDINATES'
+    )) {
+      throw err;
+    }
+
     if (!appConfig.AUTO_FALLBACK_ON_ERROR) {
       throw err;
     }

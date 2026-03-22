@@ -38,6 +38,7 @@ export interface RouteOption {
 export type MapsErrorCode =
   | 'DESTINATION_NOT_FOUND'   // geocoder returned zero results
   | 'NO_ROUTES_FOUND'         // Directions API returned zero routes
+  | 'ROUTE_TOO_LONG'          // destination too far for the selected mode (walking limit ~5 km)
   | 'INVALID_COORDINATES'     // lat/lng out of valid range
   | 'API_FAILURE';            // network error or Google returned an error status
 
