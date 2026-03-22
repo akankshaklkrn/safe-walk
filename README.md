@@ -31,11 +31,6 @@ The product is built around one idea: safety should not begin only after the use
   </tr>
   <tr>
     <td align="center">
-      <img src="Screenshots/IMG_9843.PNG" alt="Route Selection Screen" width="220" />
-      <br />
-      <strong>Choose Route</strong>
-    </td>
-    <td align="center">
       <img src="Screenshots/IMG_9848.PNG" alt="Escalation Modal" width="220" />
       <br />
       <strong>Escalation Flow</strong>
