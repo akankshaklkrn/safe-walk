@@ -19,36 +19,36 @@ The product is built around one idea: safety should not begin only after the use
       <strong>Login</strong>
     </td>
     <td align="center">
-      <img src="Screenshots/IMG_9840.PNG" alt="Home" width="220" />
+      <img src="Screenshots/IMG_9840.PNG" alt="Home Screen" width="220" />
       <br />
       <strong>Home</strong>
     </td>
     <td align="center">
-      <img src="Screenshots/IMG_9838.PNG" alt="Feedback Screen" width="220" />
+      <img src="Screenshots/IMG_9848.PNG" alt="Safety Setup Screen" width="220" />
       <br />
-      <strong>Feedback Screen</strong>
+      <strong>Safety Setup</strong>
     </td>
   </tr>
   <tr>
     <td align="center">
-      <img src="Screenshots/IMG_9843.PNG" alt="Route Selection Screen" width="220" />
-      <br />
-      <strong>Escalation Sequence</strong>
-    </td>
-    <td align="center">
-      <img src="Screenshots/IMG_9844.PNG" alt="Active Trip Screen" width="220" />
+      <img src="Screenshots/IMG_9844.PNG" alt="Route Selection Screen" width="220" />
       <br />
       <strong>Choose Route</strong>
     </td>
     <td align="center">
-      <img src="Screenshots/IMG_5874.PNG" alt="Escalation Modal" width="220" />
+      <img src="Screenshots/IMG_9843.PNG" alt="Active Trip Screen" width="220" />
       <br />
-      <strong>Safety Setup</strong>
+      <strong>Active Trip</strong>
+    </td>
+    <td align="center">
+      <img src="Screenshots/IMG_9838.PNG" alt="Escalation Modal" width="220" />
+      <br />
+      <strong>Escalation Sequence</strong>
     </td>
     <td align="center">
       <img src="Screenshots/IMG_9839.PNG" alt="Feedback Screen" width="220" />
       <br />
-      <strong>Feedback Screen</strong>
+      <strong>Trip Summary</strong>
     </td>
   </tr>
 </table>
