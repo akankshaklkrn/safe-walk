@@ -6,53 +6,73 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { colors } from '../constants/colors';
 import { deviationLevelLabel, formatDuration, type DeviationLevel } from '../services/api';
-import type { AIMessage } from '../data/mockMessages';
-
-async function generateTripFeedback(
-  messages: AIMessage[],
-  destination: string,
-  durationMin: number,
+async function fetchElevenLabsConversationSummary(
+  conversationId: string,
 ): Promise<string> {
-  const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-  if (!apiKey || messages.length === 0) {
-    return 'No conversation recorded for this trip.';
+  const apiKey = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY;
+  if (!apiKey) {
+    return 'ElevenLabs API key not configured.';
   }
 
-  const transcript = messages
-    .map((m) => `${m.sender === 'ai' ? 'SafeWalk' : 'You'}: ${m.text}`)
-    .join('\n');
-
-  const prompt = [
-    `A user just completed a SafeWalk trip to "${destination}" in ${durationMin} minutes.`,
-    'Here is the conversation transcript between the AI safety companion and the user:',
-    '',
-    transcript,
-    '',
-    'Based on this conversation, write a short, friendly trip feedback summary (3–5 sentences).',
-    'Mention: how the trip went, any safety moments or deviations noted, and a positive closing note.',
-    'Do not use bullet points. Write in plain prose.',
-  ].join('\n');
+  if (!conversationId) {
+    return 'No conversation ID available. The conversation may not have been established.';
+  }
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    console.log('[ElevenLabs] Fetching conversation summary for ID:', conversationId);
+    const url = `https://api.elevenlabs.io/v1/convai/conversations/${conversationId}`;
     const res = await fetch(url, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents:         [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.7 },
-      }),
+      method: 'GET',
+      headers: {
+        'xi-api-key': apiKey,
+      },
     });
 
-    if (!res.ok) return 'Could not generate feedback right now. Try again later.';
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error('[ElevenLabs] API error:', res.status, res.statusText, errorText);
+      return `Could not fetch conversation summary (${res.status}). The conversation may still be processing.`;
+    }
 
     const data = (await res.json()) as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      conversation_id?: string;
+      agent_id?: string;
+      status?: string;
+      transcript?: Array<{
+        role: 'agent' | 'user';
+        message: string | null;
+      }>;
+      analysis?: {
+        transcript_summary?: string;
+        call_summary_title?: string;
+      };
     };
-    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
-      ?? 'Could not generate feedback right now.';
-  } catch {
-    return 'Could not generate feedback right now. Check your connection.';
+
+    console.log('[ElevenLabs] Conversation status:', data.status);
+
+    // Extract summary from analysis object
+    const summaryTitle = data.analysis?.call_summary_title;
+    const summaryText = data.analysis?.transcript_summary;
+    
+    if (summaryText) {
+      console.log('[ElevenLabs] Found summary:', summaryTitle);
+      // Format with title if available
+      return summaryTitle 
+        ? `**${summaryTitle}**\n\n${summaryText}`
+        : summaryText;
+    }
+
+    // Fallback if no summary but transcript available
+    if (data.transcript && data.transcript.length > 0) {
+      const messageCount = data.transcript.length;
+      const userMessages = data.transcript.filter(t => t.role === 'user').length;
+      return `Your trip companion conversation included ${messageCount} messages (${userMessages} from you). The conversation summary is still being processed by ElevenLabs.`;
+    }
+
+    return 'Conversation summary is still being processed. Please try again in a few moments.';
+  } catch (error) {
+    console.error('[ElevenLabs] Error fetching summary:', error);
+    return 'Could not fetch conversation summary. Check your connection.';
   }
 }
 
@@ -68,7 +88,7 @@ export default function TripCompleteScreen() {
     destination,
     routeName,
     wasEscalated,
-    conversationLog,
+    elevenLabsConversationId,
   } = useLocalSearchParams<{
     tripId: string;
     completedAt: string;
@@ -79,7 +99,7 @@ export default function TripCompleteScreen() {
     destination: string;
     routeName: string;
     wasEscalated?: string;
-    conversationLog?: string;
+    elevenLabsConversationId?: string;
   }>();
 
   const [feedback, setFeedback]         = useState<string | null>(null);
@@ -95,14 +115,9 @@ export default function TripCompleteScreen() {
     ? new Date(completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : '';
 
-  const parsedMessages: AIMessage[] = (() => {
-    try { return conversationLog ? (JSON.parse(conversationLog) as AIMessage[]) : []; }
-    catch { return []; }
-  })();
-
   const handleGetFeedback = async () => {
     setLoading(true);
-    const result = await generateTripFeedback(parsedMessages, destination ?? 'your destination', durationMin);
+    const result = await fetchElevenLabsConversationSummary(elevenLabsConversationId ?? '');
     setFeedback(result);
     setLoading(false);
   };
@@ -177,7 +192,7 @@ export default function TripCompleteScreen() {
         <View style={styles.feedbackSection}>
           <Text style={styles.feedbackHeading}>Trip Feedback</Text>
           <Text style={styles.feedbackSub}>
-            Get an AI-generated summary of your trip companion conversation.
+            Get a summary of your trip companion conversation from ElevenLabs.
           </Text>
 
           {!feedback && !loadingFeedback && (

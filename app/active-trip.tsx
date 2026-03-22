@@ -93,6 +93,12 @@ export default function ActiveTripScreen() {
       ? { lat: parseFloat(startLat), lng: parseFloat(startLng) }
       : null
   );
+  const [liveEtaMinutes, setLiveEtaMinutes] = useState<number | null>(
+    etaMinutes ? parseInt(etaMinutes, 10) : null
+  );
+  const [liveProgressPercent, setLiveProgressPercent] = useState<number>(0);
+  const initialDistanceMeters = distanceMeters ? parseInt(distanceMeters, 10) : 0;
+  const [elevenLabsConversationId, setElevenLabsConversationId] = useState<string | null>(null);
 
   const escalatedRef = useRef(escalated);
   const hasStartedSessionRef = useRef(false);
@@ -201,6 +207,8 @@ export default function ActiveTripScreen() {
   const conversation = useTripConversation({
     tokenFetchUrl,
     onConnect: ({ conversationId }: { conversationId: string }) => {
+      console.log('[ElevenLabs] Connected with conversation ID:', conversationId);
+      setElevenLabsConversationId(conversationId);
       setVoiceStatus(`Companion connected: ${conversationId}`);
     },
     onDisconnect: () => {
@@ -219,6 +227,7 @@ export default function ActiveTripScreen() {
       message: string;
       source: 'user' | 'ai';
     }) => {
+      console.log('[ElevenLabs] Message received:', { source, message: message.substring(0, 50) });
       appendMessage({
         id: `${Date.now()}-${source}`,
         text: message,
@@ -317,6 +326,14 @@ export default function ActiveTripScreen() {
         setSafetyStatus(mapBackendStatus(result.status));
         setStatusReason(result.reason);
         setDeviationLevel(result.deviationLevel ?? 'none');
+
+        // Update live ETA and progress from backend
+        if (result.remainingEtaMinutes !== undefined) {
+          setLiveEtaMinutes(result.remainingEtaMinutes);
+        }
+        if (result.progressPercent !== undefined) {
+          setLiveProgressPercent(result.progressPercent);
+        }
 
         // Update ElevenLabs agent with real-time trip data (throttled to once per minute)
         const now = Date.now();
@@ -480,6 +497,7 @@ export default function ActiveTripScreen() {
             }
             const durationSeconds = Math.floor((Date.now() - tripStartTimeRef.current) / 1000);
             const durationMinutes = Math.floor(durationSeconds / 60);
+            console.log('[Trip End] ElevenLabs conversation ID:', elevenLabsConversationId);
             router.replace({
               pathname: '/trip-complete',
               params: {
@@ -492,7 +510,7 @@ export default function ActiveTripScreen() {
                 destination:                  destination ?? '',
                 routeName:                    routeName ?? '',
                 wasEscalated:                 String(escalated),
-                conversationLog:              JSON.stringify(aiMessages),
+                elevenLabsConversationId:     elevenLabsConversationId ?? '',
               },
             });
           },
@@ -545,8 +563,10 @@ export default function ActiveTripScreen() {
 
   const isConnected = conversation.status === 'connected';
   const isConnecting = conversation.status === 'connecting';
-  const etaLabel = etaMinutes ? formatEta(parseInt(etaMinutes, 10)) : '— min';
-  const distanceLabel = distanceMeters ? formatDistance(parseInt(distanceMeters, 10)) : '— mi';
+  const etaLabel = liveEtaMinutes !== null ? formatEta(liveEtaMinutes) : '— min';
+  // Calculate remaining distance: initial distance * (1 - progress as decimal)
+  const remainingDistanceMeters = Math.round(initialDistanceMeters * (1 - liveProgressPercent / 100));
+  const distanceLabel = formatDistance(remainingDistanceMeters);
 
   return (
     <SafeAreaView style={[styles.container, escalated && styles.containerEscalated]}>
