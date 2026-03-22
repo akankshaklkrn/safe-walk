@@ -17,6 +17,7 @@ export default function TripCompleteScreen() {
     finalDeviationLevel,
     destination,
     routeName,
+    wasEscalated,
   } = useLocalSearchParams<{
     tripId: string;
     completedAt: string;
@@ -26,12 +27,14 @@ export default function TripCompleteScreen() {
     finalDeviationLevel: DeviationLevel;
     destination: string;
     routeName: string;
+    wasEscalated?: string;
   }>();
 
   const durationSec   = parseInt(actualDurationSeconds ?? '0', 10);
   const durationMin   = parseInt(actualDurationMinutes ?? '0', 10);
   const finalDistM    = parseInt(finalDistanceFromRouteMeters ?? '0', 10);
   const deviationLvl  = (finalDeviationLevel ?? 'none') as DeviationLevel;
+  const isEscalated   = wasEscalated === 'true';
 
   const arrivedAt = completedAt
     ? new Date(completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -43,11 +46,20 @@ export default function TripCompleteScreen() {
 
         {/* ── Hero ──────────────────────────────────────────────────── */}
         <View style={styles.hero}>
-          <Text style={styles.heroEmoji}>🎉</Text>
-          <Text style={styles.heroTitle}>You arrived safely!</Text>
+          <Text style={styles.heroEmoji}>{isEscalated ? '🚨' : '🎉'}</Text>
+          <Text style={styles.heroTitle}>
+            {isEscalated ? 'Alert was raised' : 'You arrived safely!'}
+          </Text>
           <Text style={styles.heroDestination}>{destination}</Text>
           {arrivedAt ? (
-            <Text style={styles.heroTime}>Arrived at {arrivedAt}</Text>
+            <Text style={[styles.heroTime, isEscalated && styles.heroTimeAlert]}>
+              {isEscalated ? 'Trip ended at' : 'Arrived at'} {arrivedAt}
+            </Text>
+          ) : null}
+          {isEscalated ? (
+            <Text style={styles.heroAlert}>
+              Your trusted contact was notified with your location
+            </Text>
           ) : null}
         </View>
 
@@ -94,25 +106,6 @@ export default function TripCompleteScreen() {
 
         </View>
 
-        {/* ── Feedback (from P3) ────────────────────────────────────── */}
-        <View style={styles.feedbackCard}>
-          <Text style={styles.feedbackTitle}>How was your experience?</Text>
-          <View style={styles.feedbackButtons}>
-            <TouchableOpacity style={styles.feedbackButton}>
-              <Text style={styles.feedbackEmoji}>😊</Text>
-              <Text style={styles.feedbackLabel}>Great</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.feedbackButton}>
-              <Text style={styles.feedbackEmoji}>😐</Text>
-              <Text style={styles.feedbackLabel}>Okay</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.feedbackButton}>
-              <Text style={styles.feedbackEmoji}>😟</Text>
-              <Text style={styles.feedbackLabel}>Poor</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {/* ── Actions ───────────────────────────────────────────────── */}
         <TouchableOpacity
           style={styles.homeButton}
@@ -135,6 +128,8 @@ const styles = StyleSheet.create({
   heroTitle:       { fontSize: 30, fontWeight: '800', color: colors.text, marginTop: 8 },
   heroDestination: { fontSize: 16, color: colors.textLight, textAlign: 'center', paddingHorizontal: 32 },
   heroTime:        { fontSize: 14, color: colors.green, fontWeight: '600' },
+  heroTimeAlert:   { color: colors.red },
+  heroAlert:       { fontSize: 14, color: colors.red, fontWeight: '600', textAlign: 'center', paddingHorizontal: 32, marginTop: 4 },
 
   cards: { gap: 12, marginBottom: 24 },
 
@@ -160,24 +155,6 @@ const styles = StyleSheet.create({
   cardValue:     { fontSize: 18, fontWeight: '700', color: colors.text },
   cardValueMono: { fontSize: 11, fontFamily: 'monospace', color: colors.gray[600], lineHeight: 18 },
   cardSub:       { fontSize: 12, color: colors.textLight, marginTop: 2 },
-
-  // Feedback section (from P3)
-  feedbackCard: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  feedbackTitle:   { fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 16, textAlign: 'center' },
-  feedbackButtons: { flexDirection: 'row', justifyContent: 'space-around' },
-  feedbackButton:  { alignItems: 'center', padding: 12 },
-  feedbackEmoji:   { fontSize: 36, marginBottom: 8 },
-  feedbackLabel:   { fontSize: 14, color: colors.textLight },
 
   homeButton: {
     backgroundColor: colors.primary,

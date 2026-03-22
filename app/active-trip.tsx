@@ -97,6 +97,7 @@ export default function ActiveTripScreen() {
   const escalatedRef = useRef(escalated);
   const hasStartedSessionRef = useRef(false);
   const countdownActiveRef = useRef(false);
+  const tripStartTimeRef = useRef(Date.now());
   const fallbackLoc = useRef({
     lat: parseFloat(startLat ?? '40.7128'),
     lng: parseFloat(startLng ?? '-74.0060'),
@@ -435,7 +436,22 @@ export default function ActiveTripScreen() {
     if (conversation.status !== 'disconnected') {
       await conversation.endSession();
     }
-    router.replace('/');
+    const durationSeconds = Math.floor((Date.now() - tripStartTimeRef.current) / 1000);
+    const durationMinutes = Math.floor(durationSeconds / 60);
+    router.replace({
+      pathname: '/trip-complete',
+      params: {
+        tripId: tripId ?? 'manual-end',
+        completedAt: new Date().toISOString(),
+        actualDurationSeconds: String(durationSeconds),
+        actualDurationMinutes: String(durationMinutes),
+        finalDistanceFromRouteMeters: '0',
+        finalDeviationLevel: deviationLevel,
+        destination: destination ?? '',
+        routeName: routeName ?? '',
+        wasEscalated: String(escalated),
+      },
+    });
   };
 
   const handleMicToggle = () => {
