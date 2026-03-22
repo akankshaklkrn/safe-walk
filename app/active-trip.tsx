@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Alert,
   TextInput,
+  Vibration,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -18,7 +19,6 @@ import SafetyStatusIndicator from '../components/SafetyStatusIndicator';
 import SOSButton from '../components/SOSButton';
 import TripInfoBar from '../components/TripInfoBar';
 import AICompanionPanel from '../components/AICompanionPanel';
-import CheckInModal from '../components/CheckInModal';
 import EscalationAlert from '../components/EscalationAlert';
 import { getMockAIMessages, type AIMessage } from '../data/mockMessages';
 import { useTripConversation } from '../hooks/useTripConversation';
@@ -75,8 +75,8 @@ export default function ActiveTripScreen() {
   const [deviationLevel, setDeviationLevel] = useState<DeviationLevel>('none');
   const [rejoinedBanner, setRejoinedBanner] = useState(false);
 
-  const [showCheckIn, setShowCheckIn] = useState(false);
   const [showEscalation, setShowEscalation] = useState(false);
+  const [pendingEscalationReason, setPendingEscalationReason] = useState('');
   const [draftMessage, setDraftMessage] = useState('');
   const [voiceStatus, setVoiceStatus] = useState('Connecting trip companion');
   const [micPermissionGranted, setMicPermissionGranted] = useState<boolean | null>(null);
@@ -96,6 +96,7 @@ export default function ActiveTripScreen() {
 
   const escalatedRef = useRef(escalated);
   const hasStartedSessionRef = useRef(false);
+  const countdownActiveRef = useRef(false);
   const fallbackLoc = useRef({
     lat: parseFloat(startLat ?? '40.7128'),
     lng: parseFloat(startLng ?? '-74.0060'),
@@ -113,14 +114,62 @@ export default function ActiveTripScreen() {
     : '';
   const tokenFetchUrl =
     useServerToken && apiBaseUrl ? `${apiBaseUrl}/api/elevenlabs-token` : undefined;
-  const emailAlertBaseUrl = process.env.EXPO_PUBLIC_BACKEND_URL
-    ? process.env.EXPO_PUBLIC_BACKEND_URL
+  const emailAlertBaseUrl = process.env.EXPO_PUBLIC_API_URL
+    ? process.env.EXPO_PUBLIC_API_URL
     : Constants.expoConfig?.hostUri
-      ? `http://${Constants.expoConfig.hostUri.split(':')[0]}:3001`
-      : 'http://localhost:3001';
+      ? `http://${Constants.expoConfig.hostUri.split(':')[0]}:3000`
+      : 'http://localhost:3000';
 
   const appendMessage = (message: AIMessage) => {
     setAiMessages((prev) => [...prev, message]);
+  };
+
+  const sendEmailAlert = async (alertType: string, message: string) => {
+    const activeLocation = currentLocation ?? fallbackLoc.current;
+    const payload = {
+      userId: `trip-${tripId || 'unknown'}`,
+      tripId: tripId || 'unknown-trip',
+      location: activeLocation,
+      timestamp: new Date().toISOString(),
+      alertType,
+      message,
+      mode: (mode === 'car' ? 'car' : 'walking') as CommuteMode,
+      trustedContactEmail: trustedContactEmail || undefined,
+    };
+
+    const response = await fetch(`${emailAlertBaseUrl}/alerts/sos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const result = (await response.json()) as {
+      ok?: boolean;
+      channel?: string;
+      alertId?: string;
+      error?: string;
+    };
+
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || 'Failed to send email alert.');
+    }
+
+    appendMessage({
+      id: `${Date.now()}-email-sent`,
+      text: `Email alert sent (${result.channel || 'email'}). Alert ID: ${result.alertId || 'n/a'}.`,
+      timestamp: new Date(),
+      sender: 'ai',
+    });
+  };
+
+  const triggerCountdownEscalation = (reason: string) => {
+    if (escalatedRef.current || countdownActiveRef.current) {
+      return;
+    }
+
+    countdownActiveRef.current = true;
+    setPendingEscalationReason(reason);
+    setSafetyStatus('uncertain');
+    setShowEscalation(true);
   };
 
   const conversation = useTripConversation({
@@ -156,7 +205,7 @@ export default function ActiveTripScreen() {
       }
 
       if (source === 'ai' && configuredSafeWord && containsSafeWord(message, 'escalating now')) {
-        void handleEscalation('User did not respond for a while!');
+        triggerCountdownEscalation('User did not respond for a while');
       }
     },
   });
@@ -176,9 +225,9 @@ export default function ActiveTripScreen() {
     });
   };
 
-  const handleEscalation = async (reason: string) => {
-    setShowCheckIn(false);
+  const handleEscalation = async (reason: string, alertType = 'critical') => {
     setShowEscalation(false);
+    countdownActiveRef.current = false;
     setEscalated(true);
     setSafetyStatus('risk');
 
@@ -192,6 +241,17 @@ export default function ActiveTripScreen() {
       timestamp: new Date(),
       sender: 'ai',
     });
+    try {
+      await sendEmailAlert(alertType, reason);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Could not send email alert.';
+      appendMessage({
+        id: `${Date.now()}-email-failed`,
+        text: `Email alert failed: ${errorMessage}`,
+        timestamp: new Date(),
+        sender: 'ai',
+      });
+    }
 
     Alert.alert(
       'Escalation Triggered',
@@ -215,28 +275,18 @@ export default function ActiveTripScreen() {
   }, []);
 
   useEffect(() => {
-    if (safetyStatus !== 'safe') {
+    if (!showEscalation) {
+      Vibration.cancel();
+      countdownActiveRef.current = false;
       return;
     }
 
-    const checkInTimer = setTimeout(() => {
-      setShowCheckIn(true);
-    }, 15000);
+    Vibration.vibrate([0, 1000, 800], true);
 
-    return () => clearTimeout(checkInTimer);
-  }, [safetyStatus]);
-
-  useEffect(() => {
-    if (safetyStatus !== 'uncertain' && safetyStatus !== 'risk') {
-      return;
-    }
-
-    const escalationTimer = setTimeout(() => {
-      setShowEscalation(true);
-    }, 10000);
-
-    return () => clearTimeout(escalationTimer);
-  }, [safetyStatus]);
+    return () => {
+      Vibration.cancel();
+    };
+  }, [showEscalation]);
 
   useEffect(() => {
     if (!tripId) {
@@ -268,7 +318,7 @@ export default function ActiveTripScreen() {
         if (result.escalated && !escalatedRef.current) {
           void handleEscalation('Trip status escalated by backend');
         } else if (result.checkInRequired && !result.escalated) {
-          setShowCheckIn(true);
+          triggerCountdownEscalation(result.reason || 'Late response detected');
         }
       } catch {
         // Silent fail so the screen survives a missed poll.
@@ -346,38 +396,18 @@ export default function ActiveTripScreen() {
     }
   }, [conversation.isSpeaking, conversation.status, isMicMuted, safetyStatus]);
 
-  const handleCheckInResponse = async (isOkay: boolean) => {
-    setShowCheckIn(false);
+  const handleConfirmSafe = async () => {
+    setShowEscalation(false);
+    countdownActiveRef.current = false;
+    setSafetyStatus('safe');
+    setPendingEscalationReason('');
 
-    if (isOkay) {
-      if (tripId) {
-        try {
-          await submitCheckResponse(tripId, 'ok');
-        } catch { }
-      }
-      setSafetyStatus('safe');
-      setStatusReason('');
-      appendMessage({
-        id: `${Date.now()}-checkin-safe`,
-        text: "Great! Glad you're doing well. I'll stay with you for the rest of the trip.",
-        timestamp: new Date(),
-        sender: 'ai',
-      });
-      return;
+    if (tripId) {
+      try {
+        await submitCheckResponse(tripId, 'ok');
+      } catch { }
     }
 
-    setSafetyStatus('uncertain');
-    appendMessage({
-      id: `${Date.now()}-checkin-help`,
-      text: "I'm here to help. Stay with me, and use SOS if you need immediate support.",
-      timestamp: new Date(),
-      sender: 'ai',
-    });
-  };
-
-  const handleConfirmSafe = () => {
-    setShowEscalation(false);
-    setSafetyStatus('safe');
     appendMessage({
       id: `${Date.now()}-confirm-safe`,
       text: "Glad to hear you're safe. I'll continue monitoring the trip.",
@@ -387,7 +417,10 @@ export default function ActiveTripScreen() {
   };
 
   const handleEmergencyContact = () => {
-    void handleEscalation('Emergency contact requested from safety alert');
+    void handleEscalation(
+      pendingEscalationReason || 'Emergency contact requested from safety alert',
+      'late-response'
+    );
   };
 
   const handleSOS = async () => {
@@ -395,54 +428,7 @@ export default function ActiveTripScreen() {
       submitCheckResponse(tripId, 'sos').catch(() => undefined);
     }
 
-    const activeLocation = currentLocation ?? fallbackLoc.current;
-    const payload = {
-      userId: `trip-${tripId || 'unknown'}`,
-      tripId: tripId || 'unknown-trip',
-      location: activeLocation,
-      timestamp: new Date().toISOString(),
-      alertType: 'sos',
-      message: `Manual SOS triggered while heading to ${destinationName}.`,
-      mode: (mode === 'car' ? 'car' : 'walking') as CommuteMode,
-      trustedContactEmail: trustedContactEmail || undefined,
-    };
-
-    let escalationReason = 'Manual SOS';
-    try {
-      const response = await fetch(`${emailAlertBaseUrl}/alerts/sos`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const result = (await response.json()) as {
-        ok?: boolean;
-        channel?: string;
-        alertId?: string;
-        error?: string;
-      };
-      if (!response.ok || !result.ok) {
-        throw new Error(result.error || 'Failed to send email alert.');
-      }
-
-      appendMessage({
-        id: `${Date.now()}-email-sent`,
-        text: `Email alert sent (${result.channel || 'email'}). Alert ID: ${result.alertId || 'n/a'}.`,
-        timestamp: new Date(),
-        sender: 'ai',
-      });
-      escalationReason = 'Manual SOS with email alert sent';
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Could not send email alert.';
-      appendMessage({
-        id: `${Date.now()}-email-failed`,
-        text: `Email alert failed: ${errorMessage}`,
-        timestamp: new Date(),
-        sender: 'ai',
-      });
-      escalationReason = `Manual SOS (email failed: ${errorMessage})`;
-    }
-
-    void handleEscalation(escalationReason);
+    void handleEscalation(`Manual SOS triggered while heading to ${destinationName}.`, 'sos');
   };
 
   const handleEndTrip = async () => {
@@ -607,10 +593,9 @@ export default function ActiveTripScreen() {
         </View>
       )}
 
-      <CheckInModal visible={showCheckIn} onRespond={handleCheckInResponse} />
       <EscalationAlert
         visible={showEscalation}
-        onConfirmSafe={handleConfirmSafe}
+        onConfirmSafe={() => void handleConfirmSafe()}
         onEmergencyContact={handleEmergencyContact}
       />
     </SafeAreaView>

@@ -8,6 +8,7 @@ import checkResponseRouter from './routes/checkResponse';
 import statusRouter from './routes/status';
 import getRoutesRouter from './routes/getRoutes';
 import placesAutocompleteRouter from './routes/placesAutocomplete';
+import alertsRouter from './routes/alerts';
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
@@ -27,6 +28,7 @@ app.use('/start-trip', startTripRouter);
 app.use('/update-location', updateLocationRouter);
 app.use('/check-response', checkResponseRouter);
 app.use('/status', statusRouter);
+app.use('/alerts', alertsRouter);
 
 app.listen(PORT, () => {
   console.log(`SafeWalk backend running on http://localhost:${PORT}`);

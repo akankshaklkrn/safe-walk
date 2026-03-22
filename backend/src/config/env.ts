@@ -19,6 +19,11 @@ export const env = {
    * before using this value, so an empty string is never sent to Google.
    */
   GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY ?? '',
+  SMTP_HOST: process.env.SMTP_HOST ?? '',
+  SMTP_PORT: parseInt(process.env.SMTP_PORT ?? '587', 10),
+  SMTP_USER: process.env.SMTP_USER ?? '',
+  SMTP_PASS: process.env.SMTP_PASS ?? '',
+  SMTP_FROM: process.env.SMTP_FROM ?? process.env.SMTP_USER ?? '',
 };
 
 // Warn (don't crash) if the key is missing and mock mode hasn't been forced
