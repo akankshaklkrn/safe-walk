@@ -33,12 +33,15 @@ export interface TripSetupData {
 }
 
 export interface RouteMetrics {
+  stepCount: number;
   directness: 'high' | 'medium' | 'low';
   turnCount: number;
   intersectionCount: number;
   activityLevel: 'high' | 'medium' | 'low';
   mainRoadExposure: 'high' | 'medium' | 'low';
-  nearbyStops: number;
+  mainRoadRatio: number;
+  nearbyPlaceCount: number;
+  areaCharacter: 'commercial' | 'mixed' | 'residential';
 }
 
 export interface Route {
@@ -73,7 +76,7 @@ export interface RouteObservation {
 }
 
 export interface RouteSummaryResponse {
-  provider: 'mock' | 'perplexity' | 'gemini';
+  provider: 'rules';
   observations: RouteObservation[];
   overallComparison: string;
   fallbackUsed: boolean;

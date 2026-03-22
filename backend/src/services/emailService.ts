@@ -88,8 +88,6 @@ export async function sendSosEmail(payload: SosEmailPayload) {
       <p><strong>SafeWalk emergency alert</strong></p>
       <p>${payload.userName} may need assistance right now. SafeWalk detected a critical event during the trip and is sharing the latest trip details below so you can check in quickly.</p>
       <p><strong>User:</strong> ${payload.userName}</p>
-      <p><strong>User ID:</strong> ${payload.userId}</p>
-      <p><strong>Trip ID:</strong> ${payload.tripId}</p>
       <p><strong>Mode:</strong> ${payload.mode}</p>
       <p><strong>Origin:</strong> ${payload.originLabel}</p>
       <p><strong>Destination:</strong> ${payload.destinationLabel}</p>

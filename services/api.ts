@@ -1,5 +1,5 @@
 import * as Location from 'expo-location';
-import type { CommuteMode, Route, SafetyStatus } from '../types';
+import type { CommuteMode, Route, RouteMetrics, SafetyStatus } from '../types';
 
 // On a phone, localhost refers to the phone itself, not your PC.
 // Set EXPO_PUBLIC_API_URL in your .env to your PC's LAN IP, e.g.:
@@ -24,6 +24,7 @@ export interface RouteOptionRaw {
   startLocation: { lat: number; lng: number };
   endLocation: { lat: number; lng: number };
   summary?: string;
+  metrics?: RouteMetrics;
 }
 
 export interface TripSession {
@@ -126,6 +127,7 @@ export function toDisplayRoute(raw: RouteOptionRaw): Route & { _raw: RouteOption
     eta: formatEta(raw.etaMinutes),
     distance: formatDistance(raw.distanceMeters),
     observation: raw.summary ?? `Via ${raw.name}`,
+    metrics: raw.metrics,
     _raw: raw,
   };
 }

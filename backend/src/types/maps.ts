@@ -13,6 +13,18 @@ export interface LatLng {
   lng: number;
 }
 
+export interface RouteMetrics {
+  stepCount: number;
+  directness: 'high' | 'medium' | 'low';
+  turnCount: number;
+  intersectionCount: number;
+  activityLevel: 'high' | 'medium' | 'low';
+  mainRoadExposure: 'high' | 'medium' | 'low';
+  mainRoadRatio: number;
+  nearbyPlaceCount: number;
+  areaCharacter: 'commercial' | 'mixed' | 'residential';
+}
+
 /**
  * A single normalised route option returned to the frontend.
  * All numeric values are in SI units (metres, minutes) so the frontend
@@ -29,6 +41,7 @@ export interface RouteOption {
   startLocation: LatLng;
   endLocation: LatLng;
   summary?: string;           // major road names e.g. "Broadway and W 42nd St"
+  metrics?: RouteMetrics;
 }
 
 // ---------------------------------------------------------------------------

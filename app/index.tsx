@@ -14,7 +14,7 @@ import {
 import { useRouter } from 'expo-router';
 import { colors } from '../constants/colors';
 import { useAuthContext } from '../context/AuthContext';
-import { checkHealth, getPlaceSuggestions, type PlaceSuggestion } from '../services/api';
+import { getPlaceSuggestions, type PlaceSuggestion } from '../services/api';
 import { CommuteMode } from '../types';
 
 export default function HomeScreen() {
@@ -24,7 +24,6 @@ export default function HomeScreen() {
   const [mode, setMode] = useState<CommuteMode>('walking');
   const [safeWord, setSafeWord] = useState('');
   const [safeWordMode, setSafeWordMode] = useState<'stored' | 'new'>('new');
-  const [backendStatus, setBackendStatus] = useState<'checking' | 'ok' | 'offline'>('checking');
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -34,10 +33,6 @@ export default function HomeScreen() {
       router.replace('/login');
     }
   }, [authUser, loading, router]);
-
-  useEffect(() => {
-    checkHealth().then((ok) => setBackendStatus(ok ? 'ok' : 'offline'));
-  }, []);
 
   useEffect(() => {
     if (profile?.safeWord) {
@@ -101,6 +96,8 @@ export default function HomeScreen() {
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets
         showsVerticalScrollIndicator={false}
       >
         <TouchableOpacity style={styles.logoutButton} onPress={() => void logout()}>
@@ -119,22 +116,6 @@ export default function HomeScreen() {
             Your AI walking companion is ready for the next trip.
           </Text>
         </View>
-
-        <TouchableOpacity
-          style={styles.statusRow}
-          onPress={() => {
-            setBackendStatus('checking');
-            checkHealth().then((ok) => setBackendStatus(ok ? 'ok' : 'offline'));
-          }}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.statusDot, statusDotStyle(backendStatus)]} />
-          <Text style={styles.statusText}>
-            {backendStatus === 'checking' && 'Connecting to backend…'}
-            {backendStatus === 'ok' && 'Backend connected  ·  tap to recheck'}
-            {backendStatus === 'offline' && 'Backend offline  ·  tap to retry'}
-          </Text>
-        </TouchableOpacity>
 
         <View style={styles.modeSection}>
           <Text style={styles.label}>How are you traveling?</Text>
@@ -255,12 +236,6 @@ export default function HomeScreen() {
   );
 }
 
-function statusDotStyle(status: 'checking' | 'ok' | 'offline') {
-  if (status === 'ok') return { backgroundColor: colors.green };
-  if (status === 'offline') return { backgroundColor: colors.red };
-  return { backgroundColor: colors.yellow };
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -270,7 +245,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 44,
-    paddingBottom: 36,
+    paddingBottom: 72,
   },
   header: {
     marginBottom: 24,
@@ -305,33 +280,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 10,
-    backgroundColor: '#EEEAFE',
+    backgroundColor: '#5b5299',
   },
   logoutButtonText: {
-    color: '#5b5299',
+    color: colors.white,
     fontWeight: '700',
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 28,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: colors.gray[50],
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  statusText: {
-    fontSize: 13,
-    color: colors.textLight,
-    flex: 1,
   },
   modeSection: {
     marginBottom: 32,

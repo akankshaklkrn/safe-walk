@@ -152,6 +152,17 @@ export function getMockRouteOptions(
       startLocation:  currentLocation,
       endLocation,
       summary:        `Mock ${tpl.name} (demo)`,
+      metrics: {
+        stepCount: tpl.steps,
+        directness: index === 0 ? 'high' : index === 1 ? 'medium' : 'low',
+        turnCount: Math.max(1, Math.round(tpl.steps / 3)),
+        intersectionCount: Math.max(1, tpl.steps - 1),
+        activityLevel: index === 1 ? 'high' : index === 0 ? 'medium' : 'low',
+        mainRoadExposure: index === 0 ? 'high' : index === 1 ? 'medium' : 'low',
+        mainRoadRatio: index === 0 ? 0.65 : index === 1 ? 0.45 : 0.2,
+        nearbyPlaceCount: index === 1 ? 5 : index === 0 ? 3 : 1,
+        areaCharacter: index === 1 ? 'commercial' : index === 0 ? 'mixed' : 'residential',
+      },
     } satisfies RouteOption;
   });
 }

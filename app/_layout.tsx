@@ -4,6 +4,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { TripProvider } from '../context/TripContext';
 import { ElevenLabsAppProvider } from '../components/ElevenLabsAppProvider';
 import { AuthProvider } from '../context/AuthContext';
+import { suppressRuntimeWarnings } from '../utils/runtimeWarnings';
+
+suppressRuntimeWarnings();
 
 export default function RootLayout() {
   return (

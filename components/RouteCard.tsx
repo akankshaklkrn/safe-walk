@@ -37,7 +37,7 @@ export default function RouteCard({ route, isSelected, onSelect }: RouteCardProp
       </View>
 
       <View style={styles.observationContainer}>
-        <Text style={styles.observationLabel}>AI Observation</Text>
+        <Text style={styles.observationLabel}>Route Observation</Text>
         <Text style={styles.observationText}>{route.observation}</Text>
       </View>
     </TouchableOpacity>

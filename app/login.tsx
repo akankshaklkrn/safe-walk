@@ -45,6 +45,8 @@ export default function LoginScreen() {
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.brandBlock}>
@@ -98,7 +100,7 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#EEF5FF' },
-  content: { flexGrow: 1, paddingHorizontal: 24, justifyContent: 'center', gap: 24, paddingVertical: 32 },
+  content: { flexGrow: 1, paddingHorizontal: 24, gap: 24, paddingTop: 56, paddingBottom: 48 },
   brandBlock: { gap: 10, alignItems: 'center' },
   logoImage: {
     width: 132,

@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { colors } from '../constants/colors';
-import { generateRouteSummary, generateMockRouteSummary } from '../services/p3';
+import { generateRouteSummary } from '../services/p3';
 import RouteCard from '../components/RouteCard';
 import type { Route, CommuteMode, RouteSummaryResponse } from '../types';
 import { useTripContext } from '../context/TripContext';
@@ -32,13 +32,12 @@ export default function RouteSelectionScreen() {
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState<string | null>(null);
   const [starting, setStarting]           = useState(false);
-  const [routeSummary, setRouteSummary]   = useState<RouteSummaryResponse>(() =>
-    generateMockRouteSummary({
-      destination: destination || 'your destination',
-      mode: mode ?? 'walking',
-      routes: [],
-    })
-  );
+  const [routeSummary, setRouteSummary]   = useState<RouteSummaryResponse>({
+    provider: 'rules',
+    observations: [],
+    overallComparison: 'Route notes based on ETA, route changes, and road characteristics.',
+    fallbackUsed: false,
+  });
 
   const applyRouteSummary = async (nextRoutes: Array<Route & { _raw: RouteOptionRaw }>) => {
     const input = {
@@ -141,7 +140,7 @@ export default function RouteSelectionScreen() {
           <Text style={styles.modeIndicator}>
             {mode === 'walking' ? '🚶 Walking' : '🚗 Driving'}
           </Text>
-          <Text style={styles.comparisonText}>{routeSummary.overallComparison}</Text>
+          <Text style={styles.comparisonText}>Choose the route that feels best for this trip. {routeSummary.overallComparison}</Text>
         </View>
       </View>
 

@@ -516,12 +516,12 @@ const styles = StyleSheet.create({
   setPrimaryButton: {
     flex: 1,
     borderRadius: 10,
-    backgroundColor: colors.gray[100],
+    backgroundColor: colors.primary,
     paddingVertical: 12,
     alignItems: 'center',
   },
   setPrimaryButtonText: {
-    color: colors.text,
+    color: colors.white,
     fontWeight: '700',
   },
   removeButton: {
@@ -537,13 +537,13 @@ const styles = StyleSheet.create({
   },
   addContactButton: {
     borderRadius: 12,
-    backgroundColor: colors.gray[100],
+    backgroundColor: colors.primary,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 4,
   },
   addContactButtonText: {
-    color: colors.text,
+    color: colors.white,
     fontWeight: '700',
   },
   addContactForm: {

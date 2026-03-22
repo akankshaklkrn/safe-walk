@@ -46,6 +46,8 @@ export default function SignupScreen() {
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.brandBlock}>
@@ -110,7 +112,7 @@ export default function SignupScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF7ED' },
-  content: { flexGrow: 1, paddingHorizontal: 24, justifyContent: 'center', gap: 24, paddingVertical: 32 },
+  content: { flexGrow: 1, paddingHorizontal: 24, gap: 24, paddingTop: 56, paddingBottom: 48 },
   brandBlock: { gap: 10 },
   logoImage: {
     width: 132,
