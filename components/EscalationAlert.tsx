@@ -6,18 +6,21 @@ interface EscalationAlertProps {
   visible: boolean;
   onConfirmSafe: () => void;
   onEmergencyContact: () => void;
+  /** When true, shows an "Emergency Activated" confirmation instead of the check-in prompt */
+  escalatedMode?: boolean;
 }
 
 export default function EscalationAlert({ 
   visible, 
   onConfirmSafe, 
-  onEmergencyContact 
+  onEmergencyContact,
+  escalatedMode = false,
 }: EscalationAlertProps) {
   const [countdown, setCountdown] = useState(30);
   const hasEscalated = useRef(false);
 
   useEffect(() => {
-    if (!visible) {
+    if (!visible || escalatedMode) {
       setCountdown(30);
       hasEscalated.current = false;
       return;
@@ -38,7 +41,50 @@ export default function EscalationAlert({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [visible, onEmergencyContact]);
+  }, [visible, escalatedMode, onEmergencyContact]);
+
+  if (escalatedMode) {
+    return (
+      <Modal
+        visible={visible}
+        transparent
+        animationType="fade"
+        onRequestClose={onConfirmSafe}
+      >
+        <View style={styles.overlay}>
+          <View style={[styles.modal, styles.modalEscalated]}>
+            <View style={styles.header}>
+              <Text style={styles.warningIcon}>🚨</Text>
+              <Text style={[styles.title, styles.titleEscalated]}>Emergency Activated</Text>
+            </View>
+
+            <View style={[styles.countdownContainer, styles.countdownEscalated]}>
+              <Text style={[styles.countdownLabel, styles.countdownLabelEscalated]}>Alert Status</Text>
+              <Text style={[styles.countdown, styles.countdownValueEscalated]}>SENT</Text>
+            </View>
+
+            <Text style={styles.message}>
+              Your emergency contact has been notified with your live location and trip details.
+              Stay safe — help is on the way.
+            </Text>
+
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity
+                style={[styles.button, styles.buttonEmergency]}
+                onPress={onConfirmSafe}
+              >
+                <Text style={styles.buttonTextEmergency}>OK, Got It</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.note}>
+              Continue to share your location by keeping the app open.
+            </Text>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
 
   return (
     <Modal
@@ -179,5 +225,23 @@ const styles = StyleSheet.create({
     color: colors.textLight,
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  modalEscalated: {
+    borderColor: '#7F1D1D',
+    backgroundColor: '#FFF5F5',
+  },
+  titleEscalated: {
+    color: '#7F1D1D',
+  },
+  countdownEscalated: {
+    backgroundColor: '#FCA5A5',
+  },
+  countdownLabelEscalated: {
+    color: '#7F1D1D',
+  },
+  countdownValueEscalated: {
+    fontSize: 28,
+    letterSpacing: 4,
+    color: '#7F1D1D',
   },
 });

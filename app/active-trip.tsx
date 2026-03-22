@@ -6,7 +6,7 @@ import {
   StyleSheet,
   Alert,
   TextInput,
-  Vibration,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -75,7 +75,7 @@ export default function ActiveTripScreen() {
   const [deviationLevel, setDeviationLevel] = useState<DeviationLevel>('none');
   const [rejoinedBanner, setRejoinedBanner] = useState(false);
 
-  const [showEscalation, setShowEscalation] = useState(false);
+  const [showSOSConfirmation, setShowSOSConfirmation] = useState(false);
   const [pendingEscalationReason, setPendingEscalationReason] = useState('');
   const [draftMessage, setDraftMessage] = useState('');
   const [voiceStatus, setVoiceStatus] = useState('Connecting trip companion');
@@ -170,7 +170,6 @@ export default function ActiveTripScreen() {
     countdownActiveRef.current = true;
     setPendingEscalationReason(reason);
     setSafetyStatus('uncertain');
-    setShowEscalation(true);
   };
 
   const conversation = useTripConversation({
@@ -227,7 +226,6 @@ export default function ActiveTripScreen() {
   };
 
   const handleEscalation = async (reason: string, alertType = 'critical') => {
-    setShowEscalation(false);
     countdownActiveRef.current = false;
     setEscalated(true);
     setSafetyStatus('risk');
@@ -254,11 +252,6 @@ export default function ActiveTripScreen() {
       });
     }
 
-    Alert.alert(
-      'Escalation Triggered',
-      `Emergency alert sent to your trusted contact with your live location. Reason: ${reason}.`,
-      [{ text: 'OK' }]
-    );
   };
 
   useEffect(() => {
@@ -275,19 +268,6 @@ export default function ActiveTripScreen() {
       });
   }, []);
 
-  useEffect(() => {
-    if (!showEscalation) {
-      Vibration.cancel();
-      countdownActiveRef.current = false;
-      return;
-    }
-
-    Vibration.vibrate([0, 1000, 800], true);
-
-    return () => {
-      Vibration.cancel();
-    };
-  }, [showEscalation]);
 
   useEffect(() => {
     if (!tripId) {
@@ -398,7 +378,6 @@ export default function ActiveTripScreen() {
   }, [conversation.isSpeaking, conversation.status, isMicMuted, safetyStatus]);
 
   const handleConfirmSafe = async () => {
-    setShowEscalation(false);
     countdownActiveRef.current = false;
     setSafetyStatus('safe');
     setPendingEscalationReason('');
@@ -424,34 +403,52 @@ export default function ActiveTripScreen() {
     );
   };
 
-  const handleSOS = async () => {
+  const handleSOS = () => {
+    void handleEscalation('Manual SOS triggered');
+    setShowSOSConfirmation(true);
+
+    // Fire backend + email calls in the background after UI has already responded
+    const activeLocation = currentLocation ?? fallbackLoc.current;
+
     if (tripId) {
       submitCheckResponse(tripId, 'sos').catch(() => undefined);
     }
 
-    void handleEscalation(`Manual SOS triggered while heading to ${destinationName}.`, 'sos');
   };
 
   const handleEndTrip = async () => {
-    if (conversation.status !== 'disconnected') {
-      await conversation.endSession();
-    }
-    const durationSeconds = Math.floor((Date.now() - tripStartTimeRef.current) / 1000);
-    const durationMinutes = Math.floor(durationSeconds / 60);
-    router.replace({
-      pathname: '/trip-complete',
-      params: {
-        tripId: tripId ?? 'manual-end',
-        completedAt: new Date().toISOString(),
-        actualDurationSeconds: String(durationSeconds),
-        actualDurationMinutes: String(durationMinutes),
-        finalDistanceFromRouteMeters: '0',
-        finalDeviationLevel: deviationLevel,
-        destination: destination ?? '',
-        routeName: routeName ?? '',
-        wasEscalated: String(escalated),
-      },
-    });
+    Alert.alert(
+      'End Trip',
+      'Are you sure you want to end this trip?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'End Trip',
+          style: 'destructive',
+          onPress: async () => {
+            if (conversation.status !== 'disconnected') {
+              await conversation.endSession();
+            }
+            const durationSeconds = Math.floor((Date.now() - tripStartTimeRef.current) / 1000);
+            const durationMinutes = Math.floor(durationSeconds / 60);
+            router.replace({
+              pathname: '/trip-complete',
+              params: {
+                tripId:                       tripId ?? 'unknown',
+                completedAt:                  new Date().toISOString(),
+                actualDurationSeconds:        String(durationSeconds),
+                actualDurationMinutes:        String(durationMinutes),
+                finalDistanceFromRouteMeters: '0',
+                finalDeviationLevel:          deviationLevel ?? 'none',
+                destination:                  destination ?? '',
+                routeName:                    routeName ?? '',
+                wasEscalated:                 String(escalated),
+              },
+            });
+          },
+        },
+      ],
+    );
   };
 
   const handleMicToggle = () => {
@@ -503,106 +500,129 @@ export default function ActiveTripScreen() {
 
   return (
     <SafeAreaView style={[styles.container, escalated && styles.containerEscalated]}>
+
+      {/* ── Compact header: status + SOS ──────────────────────────── */}
       <View style={styles.header}>
-        <SafetyStatusIndicator status={safetyStatus} />
-        <Text style={styles.modeIndicator}>
-          {mode === 'walking' ? '🚶 Walking' : '🚗 Driving'}
-          {routeName ? `  ·  ${routeName}` : ''}
-        </Text>
-        {statusReason ? <Text style={styles.statusReason}>{statusReason}</Text> : null}
-        <View style={[styles.deviationBadge, deviationBadgeStyle(deviationLevel)]}>
-          <Text style={styles.deviationBadgeText}>{deviationLevelLabel(deviationLevel)}</Text>
+        <View style={styles.headerLeft}>
+          <SafetyStatusIndicator status={safetyStatus} />
+          {statusReason ? (
+            <Text style={styles.statusReason} numberOfLines={1}>{statusReason}</Text>
+          ) : null}
         </View>
+        <TouchableOpacity
+          style={styles.sosButton}
+          activeOpacity={0.8}
+          onPress={() => void handleSOS()}
+        >
+          <Text style={styles.sosButtonLabel}>SOS</Text>
+          <Text style={styles.sosButtonSub}>Emergency</Text>
+        </TouchableOpacity>
       </View>
 
-      <View style={styles.mapContainer}>
-        <MapView
-          userLocation={currentLocation}
-          destination={
-            endLat && endLng
-              ? { lat: parseFloat(endLat), lng: parseFloat(endLng) }
-              : null
-          }
-          routePolyline={typeof polyline === 'string' ? polyline : ''}
-          safetyStatus={safetyStatus}
-        />
-      </View>
-
-      <View style={styles.companionContainer}>
-        <AICompanionPanel messages={aiMessages} />
-      </View>
-
-      <View style={styles.voiceContainer}>
-        <Text style={styles.inputLabel}>Trip Companion</Text>
-        <Text style={styles.voiceStatus}>{voiceStatus}</Text>
-        {micPermissionGranted !== true && (
-          <TouchableOpacity
-            style={styles.permissionButton}
-            onPress={() => void handleRequestMicPermission()}
-          >
-            <Text style={styles.permissionButtonText}>Enable Microphone</Text>
-          </TouchableOpacity>
-        )}
-        <View style={styles.voiceButtonRow}>
-          <TouchableOpacity
-            style={[
-              styles.voiceControlButton,
-              (!isConnected || micPermissionGranted !== true) && styles.voiceControlButtonDisabled,
-            ]}
-            onPress={handleMicToggle}
-            disabled={!isConnected || micPermissionGranted !== true}
-          >
-            <Text style={styles.voiceControlText}>Mute / Unmute Mic</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.voiceActionButton, isConnecting && styles.voiceControlButtonDisabled]}
-            onPress={() => void handleEndTrip()}
-            disabled={isConnecting}
-          >
-            <Text style={styles.voiceActionButtonText}>End Trip</Text>
-          </TouchableOpacity>
+      {/* ── Scrollable content ────────────────────────────────────── */}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Map */}
+        <View style={styles.mapContainer}>
+          <MapView
+            userLocation={currentLocation}
+            destination={
+              endLat && endLng
+                ? { lat: parseFloat(endLat), lng: parseFloat(endLng) }
+                : null
+            }
+            routePolyline={typeof polyline === 'string' ? polyline : ''}
+            safetyStatus={safetyStatus}
+          />
         </View>
 
-        <TextInput
-          style={styles.messageInput}
-          placeholder="Optional manual message to the companion"
-          placeholderTextColor={colors.textLight}
-          value={draftMessage}
-          onChangeText={setDraftMessage}
-          autoCapitalize="sentences"
-          autoCorrect={false}
-        />
-
-        <View style={styles.monitorRow}>
-          <Text style={styles.monitorText}>
-            {configuredSafeWord
-              ? 'Safe word armed during the full live conversation.'
-              : 'No safe word configured.'}
-          </Text>
-          <TouchableOpacity
-            style={[styles.sendButton, !isConnected && styles.voiceControlButtonDisabled]}
-            onPress={handleSendMessage}
-            disabled={!isConnected}
-          >
-            <Text style={styles.sendButtonText}>Send</Text>
-          </TouchableOpacity>
+        {/* ETA + Distance inline below map */}
+        <View style={styles.etaRow}>
+          <View style={styles.etaChip}>
+            <Text style={styles.etaChipIcon}>⏱</Text>
+            <Text style={styles.etaChipLabel}>ETA</Text>
+            <Text style={styles.etaChipValue}>{etaLabel}</Text>
+          </View>
+          <View style={styles.etaDivider} />
+          <View style={styles.etaChip}>
+            <Text style={styles.etaChipIcon}>📍</Text>
+            <Text style={styles.etaChipLabel}>Distance</Text>
+            <Text style={styles.etaChipValue}>{distanceLabel}</Text>
+          </View>
         </View>
-      </View>
 
-      <View style={styles.infoContainer}>
-        <TripInfoBar eta={etaLabel} distance={distanceLabel} />
-      </View>
+        {/* AI Companion */}
+        <View style={styles.companionContainer}>
+          <AICompanionPanel messages={aiMessages} />
+        </View>
 
-      <View style={styles.sosContainer}>
-        <SOSButton onPress={handleSOS} />
-      </View>
+        {/* Voice / controls */}
+        <View style={styles.voiceContainer}>
+          <Text style={styles.inputLabel}>Trip Companion</Text>
+          <Text style={styles.voiceStatus}>{voiceStatus}</Text>
+          {micPermissionGranted !== true && (
+            <TouchableOpacity
+              style={styles.permissionButton}
+              onPress={() => void handleRequestMicPermission()}
+            >
+              <Text style={styles.permissionButtonText}>Enable Microphone</Text>
+            </TouchableOpacity>
+          )}
+          <View style={styles.voiceButtonRow}>
+            <TouchableOpacity
+              style={[
+                styles.voiceControlButton,
+                (!isConnected || micPermissionGranted !== true) && styles.voiceControlButtonDisabled,
+              ]}
+              onPress={handleMicToggle}
+              disabled={!isConnected || micPermissionGranted !== true}
+            >
+              <Text style={styles.voiceControlText}>Mute / Unmute Mic</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.voiceActionButton, isConnecting && styles.voiceControlButtonDisabled]}
+              onPress={() => void handleEndTrip()}
+              disabled={isConnecting}
+            >
+              <Text style={styles.voiceActionButtonText}>End Trip</Text>
+            </TouchableOpacity>
+          </View>
 
+          <TextInput
+            style={styles.messageInput}
+            placeholder="Message your companion…"
+            placeholderTextColor={colors.textLight}
+            value={draftMessage}
+            onChangeText={setDraftMessage}
+            autoCapitalize="sentences"
+            autoCorrect={false}
+          />
+
+          <View style={styles.monitorRow}>
+            <Text style={styles.monitorText}>
+              {configuredSafeWord ? 'Safe word armed.' : 'No safe word set.'}
+            </Text>
+            <TouchableOpacity
+              style={[styles.sendButton, !isConnected && styles.voiceControlButtonDisabled]}
+              onPress={handleSendMessage}
+              disabled={!isConnected}
+            >
+              <Text style={styles.sendButtonText}>Send</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* ── Banners (absolute overlays) ───────────────────────────── */}
       {escalated && (
         <View style={styles.escalationBanner}>
           <Text style={styles.escalationText}>🚨 Alert sent to your trusted contact</Text>
         </View>
       )}
-
       {rejoinedBanner && (
         <View style={styles.rejoinBanner}>
           <Text style={styles.rejoinText}>✅ Back on route!</Text>
@@ -610,9 +630,10 @@ export default function ActiveTripScreen() {
       )}
 
       <EscalationAlert
-        visible={showEscalation}
-        onConfirmSafe={() => void handleConfirmSafe()}
-        onEmergencyContact={handleEmergencyContact}
+        visible={showSOSConfirmation}
+        escalatedMode
+        onConfirmSafe={() => setShowSOSConfirmation(false)}
+        onEmergencyContact={() => setShowSOSConfirmation(false)}
       />
     </SafeAreaView>
   );
@@ -640,45 +661,108 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF5F5',
   },
   header: {
-    paddingHorizontal: 24,
-    paddingVertical: 16,
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.white,
   },
-  modeIndicator: {
-    fontSize: 13,
-    color: colors.textLight,
-    fontWeight: '600',
+  headerLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   statusReason: {
     fontSize: 12,
     color: colors.textLight,
-    textAlign: 'center',
     fontStyle: 'italic',
+    flexShrink: 1,
   },
-  deviationBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 20,
-    marginTop: 2,
+  sosButton: {
+    backgroundColor: '#EF4444',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 6,
+    marginLeft: 12,
+    minWidth: 64,
   },
-  deviationBadgeText: {
-    fontSize: 12,
+  sosButtonLabel: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  sosButtonSub: {
+    color: '#FECACA',
+    fontSize: 9,
     fontWeight: '600',
-    color: colors.text,
+    letterSpacing: 0.5,
+    marginTop: 1,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 16,
   },
   mapContainer: {
-    height: 250,
-    marginHorizontal: 24,
-    marginBottom: 16,
+    height: 220,
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 0,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  etaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 10,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  etaChip: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+  },
+  etaChipIcon: { fontSize: 22, marginBottom: 2 },
+  etaChipLabel: { fontSize: 11, color: colors.textLight, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  etaChipValue: { fontSize: 20, fontWeight: '700', color: colors.text },
+  etaDivider: {
+    width: 1,
+    height: 44,
+    backgroundColor: colors.border,
+    marginHorizontal: 8,
   },
   companionContainer: {
-    marginHorizontal: 24,
-    marginBottom: 12,
+    marginHorizontal: 16,
+    marginBottom: 10,
   },
   voiceContainer: {
-    marginHorizontal: 24,
-    marginBottom: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
     backgroundColor: colors.white,
     borderRadius: 16,
     padding: 16,
@@ -777,14 +861,6 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 14,
     fontWeight: '700',
-  },
-  infoContainer: {
-    paddingHorizontal: 24,
-    marginBottom: 16,
-  },
-  sosContainer: {
-    alignItems: 'center',
-    paddingBottom: 24,
   },
   escalationBanner: {
     position: 'absolute',

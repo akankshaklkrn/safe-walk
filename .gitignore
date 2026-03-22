@@ -42,3 +42,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Local ElevenLabs stubs (not for repo)
+components/ElevenLabsAppProvider.native.tsx
+hooks/useTripConversation.native.ts
