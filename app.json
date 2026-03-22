@@ -16,6 +16,9 @@
       "supportsTablet": true,
       "bitcode": false,
       "bundleIdentifier": "com.anonymous.SafeWalk",
+      "config": {
+        "googleMapsApiKey": "AIzaSyCPUeVUUrZ9OfseEbfJ1qcqkyCyoA4r_q4"
+      },
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true,
