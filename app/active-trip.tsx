@@ -51,6 +51,8 @@ export default function ActiveTripScreen() {
     polyline,
     routeName,
     safeWord,
+    isSilentMode,
+    routeDeviationAlerts,
     trustedContactEmail,
   } = useLocalSearchParams<{
     tripId: string;
@@ -65,6 +67,8 @@ export default function ActiveTripScreen() {
     polyline: string;
     routeName: string;
     safeWord: string;
+    isSilentMode: string;
+    routeDeviationAlerts: string;
     trustedContactEmail: string;
   }>();
 
@@ -113,6 +117,7 @@ export default function ActiveTripScreen() {
   escalatedRef.current = escalated;
 
   const configuredSafeWord = typeof safeWord === 'string' ? safeWord : '';
+  const silentModeEnabled = isSilentMode === 'true';
   const destinationName = destination || 'your destination';
   const selectedRouteName = routeName || 'your selected route';
   const agentId = process.env.EXPO_PUBLIC_ELEVENLABS_AGENT_ID;
@@ -762,6 +767,7 @@ export default function ActiveTripScreen() {
         visible={showEscalationPrompt}
         onConfirmSafe={() => void handleConfirmSafe()}
         onEmergencyContact={handleEmergencyContact}
+        disableVibration={silentModeEnabled}
       />
       <EscalationAlert
         visible={showSOSConfirmation}

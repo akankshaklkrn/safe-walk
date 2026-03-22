@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
-import { TripSetupData, CommuteMode, Location, LocationPermissionStatus, EmergencyContact } from '../types';
+import { TripSetupData } from '../types';
 
 interface TripContextType {
   tripSetupData: TripSetupData | null;
@@ -21,6 +21,8 @@ export function TripProvider({ children }: { children: ReactNode }) {
           currentLocation: data.currentLocation || null,
           locationPermissionStatus: data.locationPermissionStatus || 'undetermined',
           emergencyContacts: data.emergencyContacts || [],
+          isSilentMode: data.isSilentMode ?? false,
+          routeDeviationAlerts: data.routeDeviationAlerts ?? true,
         };
       }
       return { ...prev, ...data };

@@ -17,10 +17,12 @@ import {
 } from '../services/api';
 
 export default function RouteSelectionScreen() {
-  const { destination, mode, safeWord } = useLocalSearchParams<{
+  const { destination, mode, safeWord, isSilentMode, routeDeviationAlerts } = useLocalSearchParams<{
     destination: string;
     mode: CommuteMode;
     safeWord: string;
+    isSilentMode: string;
+    routeDeviationAlerts: string;
   }>();
   const router = useRouter();
   const { tripSetupData } = useTripContext();
@@ -119,6 +121,8 @@ export default function RouteSelectionScreen() {
           polyline:        selectedRoute._raw.polyline ?? '',
           routeName:       selectedRoute.name,
           safeWord:        safeWord ?? '',
+          isSilentMode:    isSilentMode ?? String(tripSetupData?.isSilentMode ?? false),
+          routeDeviationAlerts: routeDeviationAlerts ?? String(tripSetupData?.routeDeviationAlerts ?? true),
           trustedContactEmail: session.trustedContact.email,
         },
       });

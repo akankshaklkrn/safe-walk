@@ -8,6 +8,7 @@ interface EscalationAlertProps {
   onEmergencyContact: () => void;
   /** When true, shows an "Emergency Activated" confirmation instead of the check-in prompt */
   escalatedMode?: boolean;
+  disableVibration?: boolean;
 }
 
 export default function EscalationAlert({ 
@@ -15,6 +16,7 @@ export default function EscalationAlert({
   onConfirmSafe, 
   onEmergencyContact,
   escalatedMode = false,
+  disableVibration = false,
 }: EscalationAlertProps) {
   const [countdown, setCountdown] = useState(30);
   const hasEscalated = useRef(false);
@@ -67,7 +69,7 @@ export default function EscalationAlert({
   }, [visible, escalatedMode, onEmergencyContact]);
 
   useEffect(() => {
-    if (!visible || escalatedMode) {
+    if (!visible || escalatedMode || disableVibration) {
       Vibration.cancel();
       return;
     }
@@ -77,7 +79,7 @@ export default function EscalationAlert({
     return () => {
       Vibration.cancel();
     };
-  }, [visible, escalatedMode]);
+  }, [visible, escalatedMode, disableVibration]);
 
   if (escalatedMode) {
     return (

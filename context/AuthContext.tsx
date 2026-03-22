@@ -78,6 +78,21 @@ function mapAuthError(error: unknown) {
   }
 }
 
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function sanitizeContacts(contacts: EmergencyContact[]) {
+  return contacts.map((contact, index) => ({
+    ...contact,
+    name: contact.name.trim(),
+    phoneNumber: contact.phoneNumber.trim(),
+    email: contact.email.trim().toLowerCase(),
+    relationship: contact.relationship?.trim() || '',
+    isPrimary: index === 0 ? true : contact.isPrimary,
+  }));
+}
+
 function buildProfile(user: User, safeWord?: string, recentSearches: string[] = []): UserProfile {
   return {
     uid: user.uid,
@@ -105,41 +120,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const profileRef = doc(db, 'users', targetUid);
-    const profileSnap = await getDoc(profileRef);
-    const contactsSnap = await getDocs(collection(db, 'users', targetUid, 'emergencyContacts'));
+    try {
+      const profileRef = doc(db, 'users', targetUid);
+      const profileSnap = await getDoc(profileRef);
+      const contactsSnap = await getDocs(collection(db, 'users', targetUid, 'emergencyContacts'));
 
-    const fallbackUser = auth.currentUser;
-    const safeWord = profileSnap.exists() ? (profileSnap.data().safeWord as string | undefined) : undefined;
-    const recentSearches = profileSnap.exists()
-      ? Array.isArray(profileSnap.data().recentSearches)
-        ? (profileSnap.data().recentSearches as string[]).filter((search) => typeof search === 'string')
-        : []
-      : [];
-    const nextProfile =
-      profileSnap.exists() && fallbackUser
-        ? {
-            uid: targetUid,
-            name: (profileSnap.data().name as string | undefined) || fallbackUser.displayName || '',
-            email: (profileSnap.data().email as string | undefined) || fallbackUser.email || '',
-            photoURL: (profileSnap.data().photoURL as string | undefined) || fallbackUser.photoURL,
-            safeWord,
-            recentSearches,
-          }
-        : fallbackUser
-          ? buildProfile(fallbackUser, safeWord, recentSearches)
-          : null;
+      const fallbackUser = auth.currentUser;
+      const safeWord = profileSnap.exists() ? (profileSnap.data().safeWord as string | undefined) : undefined;
+      const recentSearches = profileSnap.exists()
+        ? Array.isArray(profileSnap.data().recentSearches)
+          ? (profileSnap.data().recentSearches as string[]).filter((search) => typeof search === 'string')
+          : []
+        : [];
+      const nextProfile =
+        profileSnap.exists() && fallbackUser
+          ? {
+              uid: targetUid,
+              name: (profileSnap.data().name as string | undefined) || fallbackUser.displayName || '',
+              email: (profileSnap.data().email as string | undefined) || fallbackUser.email || '',
+              photoURL: (profileSnap.data().photoURL as string | undefined) || fallbackUser.photoURL,
+              safeWord,
+              recentSearches,
+            }
+          : fallbackUser
+            ? buildProfile(fallbackUser, safeWord, recentSearches)
+            : null;
 
-    setProfile(nextProfile);
-    setEmergencyContacts(
-      contactsSnap.docs.map((contactDoc) => ({
-        id: contactDoc.id,
-        ...(contactDoc.data() as Omit<EmergencyContact, 'id'>),
-      }))
-    );
+      setProfile(nextProfile);
+      setEmergencyContacts(
+        contactsSnap.docs.map((contactDoc) => ({
+          id: contactDoc.id,
+          ...(contactDoc.data() as Omit<EmergencyContact, 'id'>),
+        }))
+      );
 
-    // Keep AsyncStorage in sync so safeWord survives cold starts
-    await cacheDangerWord(targetUid, nextProfile?.safeWord ?? '');
+      await cacheDangerWord(targetUid, nextProfile?.safeWord ?? '');
+      setAuthError(null);
+    } catch (error) {
+      setProfile(auth.currentUser ? buildProfile(auth.currentUser) : null);
+      setEmergencyContacts([]);
+      setAuthError(mapAuthError(error));
+    }
   };
 
   useEffect(() => {
@@ -159,7 +180,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(buildProfile(user, cached));
       }
 
-      await refreshProfile(user.uid);
+      try {
+        await refreshProfile(user.uid);
+      } catch {
+        // refreshProfile already maps the error into local state
+      }
       setLoading(false);
     });
 
@@ -170,11 +195,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true);
       setAuthError(null);
-      const result = await createUserWithEmailAndPassword(auth, input.email.trim(), input.password);
-      await updateProfile(result.user, { displayName: input.name.trim() });
+      const trimmedName = input.name.trim();
+      const trimmedEmail = input.email.trim().toLowerCase();
+      const trimmedPassword = input.password.trim();
+
+      if (!trimmedName) {
+        throw new Error('Enter your name.');
+      }
+      if (!isValidEmail(trimmedEmail)) {
+        throw new Error('Enter a valid email address.');
+      }
+      if (trimmedPassword.length < 6) {
+        throw new Error('Password should be at least 6 characters.');
+      }
+
+      const result = await createUserWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
+      await updateProfile(result.user, { displayName: trimmedName });
       await setDoc(doc(db, 'users', result.user.uid), {
-        name: input.name.trim(),
-        email: input.email.trim().toLowerCase(),
+        name: trimmedName,
+        email: trimmedEmail,
         photoURL: result.user.photoURL || null,
         safeWord: '',
         recentSearches: [],
@@ -184,7 +223,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await refreshProfile(result.user.uid);
     } catch (error) {
       setAuthError(mapAuthError(error));
-      throw error;
     } finally {
       setLoading(false);
     }
@@ -194,11 +232,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true);
       setAuthError(null);
-      const result = await signInWithEmailAndPassword(auth, input.email.trim(), input.password);
+      const trimmedEmail = input.email.trim().toLowerCase();
+      const trimmedPassword = input.password.trim();
+
+      if (!isValidEmail(trimmedEmail)) {
+        throw new Error('Enter a valid email address.');
+      }
+      if (!trimmedPassword) {
+        throw new Error('Enter your password.');
+      }
+
+      const result = await signInWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
       await refreshProfile(result.user.uid);
     } catch (error) {
       setAuthError(mapAuthError(error));
-      throw error;
     } finally {
       setLoading(false);
     }
@@ -220,23 +267,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const nextSafeWord = input.safeWord ?? profile?.safeWord ?? '';
     const nextPhotoUrl = input.photoURL ?? profile?.photoURL ?? auth.currentUser.photoURL ?? null;
 
-    await setDoc(
-      userRef,
-      {
-        name: nextName,
-        email: auth.currentUser.email || profile?.email || '',
-        photoURL: nextPhotoUrl,
-        safeWord: nextSafeWord,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    if (typeof input.name === 'string' && input.name !== auth.currentUser.displayName) {
-      await updateProfile(auth.currentUser, { displayName: input.name });
+    if (!nextName.trim()) {
+      setAuthError('Enter your name.');
+      return;
     }
 
-    await refreshProfile(auth.currentUser.uid);
+    if (nextSafeWord && nextSafeWord.trim().length < 2) {
+      setAuthError('Safe word should be at least 2 characters.');
+      return;
+    }
+
+    try {
+      setAuthError(null);
+      await setDoc(
+        userRef,
+        {
+          name: nextName.trim(),
+          email: auth.currentUser.email || profile?.email || '',
+          photoURL: nextPhotoUrl,
+          safeWord: nextSafeWord.trim(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      if (typeof input.name === 'string' && input.name !== auth.currentUser.displayName) {
+        await updateProfile(auth.currentUser, { displayName: input.name.trim() });
+      }
+
+      await refreshProfile(auth.currentUser.uid);
+    } catch (error) {
+      setAuthError(mapAuthError(error));
+    }
   };
 
   const saveEmergencyContacts = async (contacts: EmergencyContact[]) => {
@@ -244,24 +306,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const batch = writeBatch(db);
-    const contactsCollection = collection(db, 'users', auth.currentUser.uid, 'emergencyContacts');
-    const existingContacts = await getDocs(contactsCollection);
+    const nextContacts = sanitizeContacts(contacts);
 
-    existingContacts.forEach((contactDoc) => batch.delete(contactDoc.ref));
-    contacts.forEach((contact) => {
-      const contactRef = doc(db, 'users', auth.currentUser!.uid, 'emergencyContacts', contact.id);
-      batch.set(contactRef, {
-        name: contact.name,
-        phoneNumber: contact.phoneNumber,
-        email: contact.email,
-        relationship: contact.relationship || '',
-        isPrimary: contact.isPrimary,
+    if (nextContacts.length === 0) {
+      setAuthError('Add at least one emergency contact.');
+      return;
+    }
+
+    for (const contact of nextContacts) {
+      if (!contact.name) {
+        setAuthError('Each emergency contact needs a name.');
+        return;
+      }
+      if (!contact.phoneNumber) {
+        setAuthError('Each emergency contact needs a phone number.');
+        return;
+      }
+      if (!isValidEmail(contact.email)) {
+        setAuthError('Each emergency contact needs a valid email address.');
+        return;
+      }
+    }
+
+    try {
+      setAuthError(null);
+      const batch = writeBatch(db);
+      const contactsCollection = collection(db, 'users', auth.currentUser.uid, 'emergencyContacts');
+      const existingContacts = await getDocs(contactsCollection);
+
+      existingContacts.forEach((contactDoc) => batch.delete(contactDoc.ref));
+      nextContacts.forEach((contact) => {
+        const contactRef = doc(db, 'users', auth.currentUser!.uid, 'emergencyContacts', contact.id);
+        batch.set(contactRef, {
+          name: contact.name,
+          phoneNumber: contact.phoneNumber,
+          email: contact.email,
+          relationship: contact.relationship || '',
+          isPrimary: contact.isPrimary,
+        });
       });
-    });
 
-    await batch.commit();
-    setEmergencyContacts(contacts);
+      await batch.commit();
+      setEmergencyContacts(nextContacts);
+    } catch (error) {
+      setAuthError(mapAuthError(error));
+      throw error;
+    }
   };
 
   const saveRecentSearch = async (destination: string) => {
@@ -281,16 +371,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ),
     ].slice(0, 2);
 
-    await setDoc(
-      doc(db, 'users', auth.currentUser.uid),
-      {
-        recentSearches: nextRecentSearches,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
+    try {
+      await setDoc(
+        doc(db, 'users', auth.currentUser.uid),
+        {
+          recentSearches: nextRecentSearches,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
 
-    setProfile((prev) => (prev ? { ...prev, recentSearches: nextRecentSearches } : prev));
+      setProfile((prev) => (prev ? { ...prev, recentSearches: nextRecentSearches } : prev));
+    } catch (error) {
+      setAuthError(mapAuthError(error));
+    }
   };
 
   const value = useMemo<AuthContextValue>(

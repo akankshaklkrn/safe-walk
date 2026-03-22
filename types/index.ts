@@ -31,6 +31,8 @@ export interface TripSetupData {
   currentLocation: Location | null;
   locationPermissionStatus: LocationPermissionStatus;
   emergencyContacts: EmergencyContact[];
+  isSilentMode: boolean;
+  routeDeviationAlerts: boolean;
 }
 
 export interface RouteMetrics {

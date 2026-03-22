@@ -70,6 +70,7 @@ export default function LoginScreen() {
               placeholderTextColor={colors.gray[400]}
               keyboardType="email-address"
               autoCapitalize="none"
+              autoCorrect={false}
             />
           </View>
 
@@ -82,6 +83,7 @@ export default function LoginScreen() {
               placeholder="Password"
               placeholderTextColor={colors.gray[400]}
               secureTextEntry
+              autoCorrect={false}
             />
           </View>
 

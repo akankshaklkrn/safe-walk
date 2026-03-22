@@ -24,7 +24,7 @@ export default function SafetySetupScreen() {
     mode: 'walking' | 'car';
     safeWord: string;
   }>();
-  const { authUser, emergencyContacts: savedContacts, loading: authLoading, saveEmergencyContacts } =
+  const { authUser, emergencyContacts: savedContacts, loading: authLoading, authError, saveEmergencyContacts } =
     useAuthContext();
   const { updateTripSetup } = useTripContext();
 
@@ -34,6 +34,7 @@ export default function SafetySetupScreen() {
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [savingContacts, setSavingContacts] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
   const [showAddContact, setShowAddContact] = useState(false);
@@ -45,7 +46,7 @@ export default function SafetySetupScreen() {
   });
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
   const [checkInFrequency, setCheckInFrequency] = useState<'5min' | '15min' | 'smart'>('smart');
-  const [silentAlarmMode, setSilentAlarmMode] = useState(false);
+  const [isSilentMode, setIsSilentMode] = useState(false);
   const [routeDeviationAlerts, setRouteDeviationAlerts] = useState(true);
 
   useEffect(() => {
@@ -95,7 +96,9 @@ export default function SafetySetupScreen() {
       const { latitude, longitude } = location.coords;
       const reverseGeocode = await ExpoLocation.reverseGeocodeAsync({ latitude, longitude });
       const address = reverseGeocode[0]
-        ? `${reverseGeocode[0].street || ''}, ${reverseGeocode[0].city || ''}, ${reverseGeocode[0].region || ''}`
+        ? [reverseGeocode[0].street, reverseGeocode[0].city, reverseGeocode[0].region]
+            .filter((part): part is string => Boolean(part && part.trim()))
+            .join(', ')
         : undefined;
 
       setCurrentLocation({ latitude, longitude, address });
@@ -144,6 +147,7 @@ export default function SafetySetupScreen() {
     setEmergencyContacts((prev) => [...prev, contact]);
     setNewContact({ name: '', phoneNumber: '', email: '', relationship: '' });
     setFormErrors({});
+    setSaveError(null);
     setShowAddContact(false);
   };
 
@@ -170,6 +174,7 @@ export default function SafetySetupScreen() {
 
     setSavingContacts(true);
     try {
+      setSaveError(null);
       await saveEmergencyContacts(emergencyContacts);
       updateTripSetup({
         destination: destination || '',
@@ -177,12 +182,22 @@ export default function SafetySetupScreen() {
         currentLocation,
         locationPermissionStatus,
         emergencyContacts,
+        isSilentMode,
+        routeDeviationAlerts,
       });
 
       router.push({
         pathname: '/route-selection',
-        params: { destination, mode, safeWord },
+        params: {
+          destination,
+          mode,
+          safeWord,
+          isSilentMode: String(isSilentMode),
+          routeDeviationAlerts: String(routeDeviationAlerts),
+        },
       });
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Could not save emergency contacts.');
     } finally {
       setSavingContacts(false);
     }
@@ -218,6 +233,12 @@ export default function SafetySetupScreen() {
             Setup who to contact and how the AI should watch over you during your journey.
           </Text>
         </View>
+
+        {authError || saveError ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorBannerText}>{saveError || authError}</Text>
+          </View>
+        ) : null}
 
 
         {/* Emergency Contacts Section */}
@@ -369,7 +390,7 @@ export default function SafetySetupScreen() {
 
           <TouchableOpacity
             style={styles.preferenceCard}
-            onPress={() => setSilentAlarmMode((prev) => !prev)}
+            onPress={() => setIsSilentMode((prev) => !prev)}
           >
             <View style={styles.preferenceIcon}>
               <Text style={styles.preferenceIconText}>🛡️</Text>
@@ -380,8 +401,8 @@ export default function SafetySetupScreen() {
                 Hold volume buttons for 3s to notify contacts without alerting others.
               </Text>
             </View>
-            <View style={[styles.toggle, silentAlarmMode && styles.toggleActive]}>
-              <View style={[styles.toggleThumb, silentAlarmMode && styles.toggleThumbActive]} />
+            <View style={[styles.toggle, isSilentMode && styles.toggleActive]}>
+              <View style={[styles.toggleThumb, isSilentMode && styles.toggleThumbActive]} />
             </View>
           </TouchableOpacity>
 
@@ -728,6 +749,22 @@ const styles = StyleSheet.create({
   addContactForm: {
     marginTop: 14,
     gap: 10,
+  },
+  errorBanner: {
+    marginHorizontal: 24,
+    marginBottom: 8,
+    backgroundColor: 'rgba(231,76,60,0.08)',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(231,76,60,0.18)',
+  },
+  errorBannerText: {
+    color: colors.danger,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
   },
   input: {
     borderWidth: 1,

@@ -72,6 +72,7 @@ export default function SignupScreen() {
               onChangeText={setName}
               placeholder="Your name"
               placeholderTextColor={colors.gray[400]}
+              autoCorrect={false}
             />
           </View>
 
@@ -85,6 +86,7 @@ export default function SignupScreen() {
               placeholderTextColor={colors.gray[400]}
               keyboardType="email-address"
               autoCapitalize="none"
+              autoCorrect={false}
             />
           </View>
 
@@ -97,6 +99,7 @@ export default function SignupScreen() {
               placeholder="At least 6 characters"
               placeholderTextColor={colors.gray[400]}
               secureTextEntry
+              autoCorrect={false}
             />
           </View>
 
