@@ -1,6 +1,7 @@
 export {
   applyRouteObservations,
   buildPerplexityRouteSummaryPrompt,
+  generateMockRouteSummary,
   generateRouteSummary,
 } from './routeSummary';
 export {

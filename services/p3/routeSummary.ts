@@ -84,6 +84,16 @@ const buildOverallComparison = (routes: Route[]) => {
   return `${mostDirectRoute.name} is the most direct, ${busiestRoute.name} looks more active, and ${simplestRoute.name} should feel simpler to follow.`;
 };
 
+const buildMockRouteSummary = (input: RouteSummaryInput): RouteSummaryResponse => ({
+  provider: 'mock',
+  observations: input.routes.map((route) => ({
+    routeId: route.id,
+    observation: buildObservation(route),
+  })),
+  overallComparison: buildOverallComparison(input.routes),
+  fallbackUsed: true,
+});
+
 export const buildPerplexityRouteSummaryPrompt = (input: RouteSummaryInput) => {
   const routeLines = input.routes.map((route) => {
     const metrics = route.metrics;
@@ -112,20 +122,123 @@ export const buildPerplexityRouteSummaryPrompt = (input: RouteSummaryInput) => {
   ].join('\n');
 };
 
-export const generateRouteSummary = (input: RouteSummaryInput): RouteSummaryResponse => {
-  return {
-    provider: 'mock',
-    observations: input.routes.map((route) => ({
-      routeId: route.id,
-      observation: buildObservation(route),
-    })),
-    overallComparison: buildOverallComparison(input.routes),
-    fallbackUsed: true,
-  };
+const parsePerplexityContent = (content: string): Pick<RouteSummaryResponse, 'observations' | 'overallComparison'> | null => {
+  const normalized = content
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+  try {
+    const parsed = JSON.parse(normalized) as {
+      observations?: Array<{ routeId?: string; observation?: string }>;
+      overallComparison?: string;
+    };
+
+    if (!Array.isArray(parsed.observations) || typeof parsed.overallComparison !== 'string') {
+      return null;
+    }
+
+    const observations = parsed.observations
+      .filter((item): item is { routeId: string; observation: string } => (
+        typeof item.routeId === 'string' && typeof item.observation === 'string'
+      ))
+      .map((item) => ({
+        routeId: item.routeId,
+        observation: item.observation.trim(),
+      }));
+
+    if (observations.length === 0) {
+      return null;
+    }
+
+    return {
+      observations,
+      overallComparison: parsed.overallComparison.trim(),
+    };
+  } catch {
+    return null;
+  }
+};
+
+export const generateRouteSummary = async (
+  input: RouteSummaryInput
+): Promise<RouteSummaryResponse> => {
+  const apiKey = process.env.PERPLEXITY_API_KEY;
+
+  if (!apiKey) {
+    return buildMockRouteSummary(input);
+  }
+
+  try {
+    const response = await fetch('https://api.perplexity.ai/v1/sonar', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: process.env.PERPLEXITY_MODEL || 'sonar',
+        messages: [
+          {
+            role: 'system',
+            content:
+              'Return strict JSON only. No markdown, no prose outside JSON. ' +
+              'Schema: {"observations":[{"routeId":"string","observation":"string"}],"overallComparison":"string"}. ' +
+              'Avoid calling any route safe or unsafe.',
+          },
+          {
+            role: 'user',
+            content: buildPerplexityRouteSummaryPrompt(input),
+          },
+        ],
+        temperature: 0.2,
+      }),
+    });
+
+    if (!response.ok) {
+      return buildMockRouteSummary(input);
+    }
+
+    const data = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const content = data.choices?.[0]?.message?.content;
+
+    if (!content) {
+      return buildMockRouteSummary(input);
+    }
+
+    const parsed = parsePerplexityContent(content);
+
+    if (!parsed) {
+      return buildMockRouteSummary(input);
+    }
+
+    const validRouteIds = new Set(input.routes.map((route) => route.id));
+    const observations = parsed.observations.filter((item) => validRouteIds.has(item.routeId));
+
+    if (observations.length === 0) {
+      return buildMockRouteSummary(input);
+    }
+
+    return {
+      provider: 'perplexity',
+      observations,
+      overallComparison: parsed.overallComparison,
+      fallbackUsed: false,
+    };
+  } catch {
+    return buildMockRouteSummary(input);
+  }
+};
+
+export const generateMockRouteSummary = (input: RouteSummaryInput): RouteSummaryResponse => {
+  return buildMockRouteSummary(input);
 };
 
 export const applyRouteObservations = (input: RouteSummaryInput): Route[] => {
-  const summary = generateRouteSummary(input);
+  const summary = buildMockRouteSummary(input);
   const observationMap = new Map(
     summary.observations.map((item) => [item.routeId, item.observation])
   );

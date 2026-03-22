@@ -61,7 +61,7 @@ const parseRequest = async (request: Request): Promise<RouteSummaryInput> => {
 
 export async function POST(request: Request) {
   const input = await parseRequest(request);
-  const summary = generateRouteSummary(input);
+  const summary = await generateRouteSummary(input);
 
   return Response.json(summary, {
     status: 200,

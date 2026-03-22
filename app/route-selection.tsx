@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator,
+  StyleSheet, ActivityIndicator, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import Constants from 'expo-constants';
 import { colors } from '../constants/colors';
-import { generateRouteSummary } from '../services/p3';
+import { generateMockRouteSummary } from '../services/p3';
 import RouteCard from '../components/RouteCard';
-import type { Route, CommuteMode } from '../types';
+import type { Route, CommuteMode, RouteSummaryResponse } from '../types';
 import { useTripContext } from '../context/TripContext';
 import {
   fetchRoutes,
@@ -32,13 +33,73 @@ export default function RouteSelectionScreen() {
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState<string | null>(null);
   const [starting, setStarting]           = useState(false);
+  const [routeSummary, setRouteSummary]   = useState<RouteSummaryResponse>(() =>
+    generateMockRouteSummary({
+      destination: destination || 'your destination',
+      mode: mode ?? 'walking',
+      routes: [],
+    })
+  );
 
-  // P3 AI-generated route comparison summary (re-derived whenever routes load)
-  const routeSummary = generateRouteSummary({
-    destination: destination || 'your destination',
-    mode: mode ?? 'walking',
-    routes,
-  });
+  const routeSummaryUrl = Platform.OS === 'web'
+    ? '/api/route-summary'
+    : Constants.expoConfig?.hostUri
+      ? `http://${Constants.expoConfig.hostUri}/api/route-summary`
+      : null;
+
+  const applyRouteSummary = async (nextRoutes: Array<Route & { _raw: RouteOptionRaw }>) => {
+    const input = {
+      destination: destination || 'your destination',
+      mode: mode ?? 'walking',
+      routes: nextRoutes,
+    };
+
+    const fallbackSummary = generateMockRouteSummary(input);
+
+    if (!routeSummaryUrl) {
+      setRoutes(nextRoutes.map((route) => ({
+        ...route,
+        observation:
+          fallbackSummary.observations.find((item) => item.routeId === route.id)?.observation ??
+          route.observation,
+      })));
+      setRouteSummary(fallbackSummary);
+      return;
+    }
+
+    try {
+      const response = await fetch(routeSummaryUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(input),
+      });
+
+      if (!response.ok) {
+        throw new Error('Route summary request failed');
+      }
+
+      const summary = (await response.json()) as RouteSummaryResponse;
+      const observationMap = new Map(
+        summary.observations.map((item) => [item.routeId, item.observation])
+      );
+
+      setRoutes(nextRoutes.map((route) => ({
+        ...route,
+        observation: observationMap.get(route.id) ?? route.observation,
+      })));
+      setRouteSummary(summary);
+    } catch {
+      setRoutes(nextRoutes.map((route) => ({
+        ...route,
+        observation:
+          fallbackSummary.observations.find((item) => item.routeId === route.id)?.observation ??
+          route.observation,
+      })));
+      setRouteSummary(fallbackSummary);
+    }
+  };
 
   // Fetch real routes from backend on mount
   useEffect(() => {
@@ -49,7 +110,9 @@ export default function RouteSelectionScreen() {
         setError(null);
         const currentLocation = await getCurrentLocation();
         const result = await fetchRoutes(destination ?? '', mode ?? 'walking', currentLocation);
-        if (!cancelled) setRoutes(result);
+        if (!cancelled) {
+          await applyRouteSummary(result);
+        }
       } catch (e) {
         if (!cancelled) setError((e as Error).message ?? 'Could not fetch routes');
       } finally {
@@ -149,7 +212,7 @@ export default function RouteSelectionScreen() {
                 setLoading(true);
                 getCurrentLocation().then(loc =>
                   fetchRoutes(destination ?? '', mode ?? 'walking', loc)
-                    .then(setRoutes)
+                    .then(applyRouteSummary)
                     .catch(e => setError((e as Error).message))
                     .finally(() => setLoading(false))
                 );

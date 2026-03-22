@@ -65,7 +65,7 @@ export interface RouteObservation {
 }
 
 export interface RouteSummaryResponse {
-  provider: 'mock' | 'perplexity-ready';
+  provider: 'mock' | 'perplexity';
   observations: RouteObservation[];
   overallComparison: string;
   fallbackUsed: boolean;

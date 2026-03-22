@@ -5,7 +5,7 @@ import type { CommuteMode, Route, SafetyStatus } from '../types';
 // Set EXPO_PUBLIC_API_URL in your .env to your PC's LAN IP, e.g.:
 //   EXPO_PUBLIC_API_URL=http://192.168.1.10:3000
 // Leave unset (or keep 'http://localhost:3000') for browser/web testing.
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://134.154.49.43:3000';
 
 // ---------------------------------------------------------------------------
 // Backend response shapes — mirrors backend/src/types/ without a compile dep
@@ -22,7 +22,7 @@ export interface RouteOptionRaw {
   polyline: string;
   waypoints: Array<{ lat: number; lng: number }>;
   startLocation: { lat: number; lng: number };
-  endLocation:   { lat: number; lng: number };
+  endLocation: { lat: number; lng: number };
   summary?: string;
 }
 
@@ -37,10 +37,10 @@ export interface TripSession {
   expectedEtaMinutes: number;
   distanceMeters?: number;
   deviationThresholdMeters: { yellow: number; red: number };
-  inactivityThresholdMs:    { yellow: number; red: number };
+  inactivityThresholdMs: { yellow: number; red: number };
   checkInTimeoutMs: number;
   startLocation: { lat: number; lng: number };
-  endLocation:   { lat: number; lng: number };
+  endLocation: { lat: number; lng: number };
   trustedContact: { name: string; phone: string; email: string };
 }
 
@@ -76,16 +76,16 @@ export interface LocationUpdateResult {
 // ---------------------------------------------------------------------------
 export function mapBackendStatus(s: 'GREEN' | 'YELLOW' | 'RED'): SafetyStatus {
   if (s === 'YELLOW') return 'uncertain';
-  if (s === 'RED')    return 'risk';
+  if (s === 'RED') return 'risk';
   return 'safe';
 }
 
 // Deviation level → emoji label for display
 export function deviationLevelLabel(level: DeviationLevel): string {
   switch (level) {
-    case 'none':     return '✅ On route';
-    case 'minor':    return '🟡 Slight drift';
-    case 'warning':  return '🟠 Off route';
+    case 'none': return '✅ On route';
+    case 'minor': return '🟡 Slight drift';
+    case 'warning': return '🟠 Off route';
     case 'critical': return '🔴 Far off route';
   }
 }
@@ -115,12 +115,12 @@ export function formatDuration(seconds: number): string {
 // Converts a raw backend RouteOption into the Route shape RouteCard expects
 export function toDisplayRoute(raw: RouteOptionRaw): Route & { _raw: RouteOptionRaw } {
   return {
-    id:          raw.id,
-    name:        raw.name,
-    eta:         formatEta(raw.etaMinutes),
-    distance:    formatDistance(raw.distanceMeters),
+    id: raw.id,
+    name: raw.name,
+    eta: formatEta(raw.etaMinutes),
+    distance: formatDistance(raw.distanceMeters),
     observation: raw.summary ?? `Via ${raw.name}`,
-    _raw:        raw,
+    _raw: raw,
   };
 }
 

@@ -154,6 +154,10 @@ export default function ActiveTripScreen() {
       if (source === 'user' && configuredSafeWord && containsSafeWord(message, configuredSafeWord)) {
         void handleEscalation('Safe word detected in live conversation');
       }
+
+      if (source === 'ai' && configuredSafeWord && containsSafeWord(message, 'escalating now')) {
+        void handleEscalation('User did not respond for a while!');
+      }
     },
   });
   const navigateToComplete = (summary: TripSummaryRaw) => {
@@ -349,7 +353,7 @@ export default function ActiveTripScreen() {
       if (tripId) {
         try {
           await submitCheckResponse(tripId, 'ok');
-        } catch {}
+        } catch { }
       }
       setSafetyStatus('safe');
       setStatusReason('');
